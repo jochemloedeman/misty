@@ -1,0 +1,56 @@
+direction: down
+
+TimeOfDay: {
+  shape: class
+  Hour: int
+  Minute: int
+}
+
+DailyWindow: {
+  shape: class
+  +Start: TimeOfDay
+  +End: TimeOfDay
+}
+
+Location: {
+  shape: class
+  +Name: string
+  +Latitude: float64
+  +Longitude: float64
+}
+
+Monitor: {
+  shape: class
+
+  +ID: UUID
+  +Location: Location
+  +Timeframe: DailyWindow
+  +IsActive: bool
+
+  +Activate()
+  +Deactivate()
+}
+
+WeatherVariables: {
+  shape: class
+  +Temperature: float64
+  +DewPoint: float64
+  +RelativeHumidity: float64
+  +WindSpeed: float64
+  +Visibility: int
+}
+
+Forecast: {
+  shape: class
+  +MonitorID: UUID
+  +ForecastedAt: Time
+  +Variables: WeatherVariables
+}
+
+Alert: {
+  shape: class
+  +ID: UUID
+  +MonitorID: UUID
+  +Start: Time
+  +End: Time
+}
