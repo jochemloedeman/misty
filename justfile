@@ -1,4 +1,4 @@
-db_url := "postgres://postgres:example@localhost:5432/postgres"
+db_url := "postgres://postgres:password@localhost:5432/postgres"
 migration_dir := "sql/schema"
 
 # Start the PostgreSQL container in the background

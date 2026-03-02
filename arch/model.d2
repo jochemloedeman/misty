@@ -1,11 +1,3 @@
-direction: down
-
-TimeOfDay: {
-  shape: class
-  Hour: int
-  Minute: int
-}
-
 DailyWindow: {
   shape: class
   +Start: TimeOfDay
@@ -26,9 +18,11 @@ Monitor: {
   +Location: Location
   +Timeframe: DailyWindow
   +IsActive: bool
+  +Alert: "Alert[0..1]"
 
   +Activate()
   +Deactivate()
+  +CheckForFog(forecasts)
 }
 
 WeatherVariables: {
@@ -42,15 +36,67 @@ WeatherVariables: {
 
 Forecast: {
   shape: class
-  +MonitorID: UUID
   +ForecastedAt: Time
   +Variables: WeatherVariables
+}
+
+Forecaster: {
+  shape: class
+  +Fetch(locaction Location, horizon int): "[]Forecast"
 }
 
 Alert: {
   shape: class
   +ID: UUID
-  +MonitorID: UUID
   +Start: Time
   +End: Time
+}
+
+# ── Composition (value types embedded in structs) ────────────────────
+
+DailyWindow -- TimeOfDay: {
+  source-arrowhead: 1 {
+    shape: arrow
+  }
+  target-arrowhead: 2
+}
+
+Monitor -- Location: {
+  source-arrowhead: 1 {
+    shape: arrow
+  }
+  target-arrowhead: 1
+}
+
+Monitor -- DailyWindow: {
+  source-arrowhead: 1 {
+    shape: arrow
+  }
+  target-arrowhead: 1
+}
+
+Forecast -- WeatherVariables: {
+  source-arrowhead: 1 {
+    shape: arrow
+  }
+  target-arrowhead: 1
+}
+
+# ── Aggregate (Monitor owns its Alert) ───────────────────────────────
+
+Monitor -- Alert: {
+  source-arrowhead: 1 {
+    shape: arrow
+  }
+  target-arrowhead: "0..1"
+}
+
+# ── Dependency (service interfaces) ──────────────────────────────────
+
+Forecaster -> Location: uses {
+  style.stroke-dash: 5
+}
+
+Forecaster -> Forecast: produces {
+  style.stroke-dash: 5
 }

@@ -7,7 +7,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: example
+      POSTGRES_PASSWORD: password
     volumes:
       - pgdata:/var/lib/postgresql
     ports:

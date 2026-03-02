@@ -1,9 +1,9 @@
 version: "2"
 sql:
-  - schema: "sql/schema"
-    queries: "sql/queries"
+  - schema: "db/migrations"
+    queries: "monitor/postgres/monitors.sql"
     engine: "postgresql"
     gen:
       go:
-        out: "internal/database"
+        out: "monitor/postgres/sqlc"
         sql_package: "pgx/v5"
