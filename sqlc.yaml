@@ -1,9 +1,16 @@
 version: "2"
 sql:
   - schema: "db/migrations"
-    queries: "monitor/postgres/monitors.sql"
+    queries: "monitor/monitors.sql"
     engine: "postgresql"
     gen:
       go:
-        out: "monitor/postgres/sqlc"
+        out: "monitor/sqlc"
+        sql_package: "pgx/v5"
+  - schema: "db/migrations"
+    queries: "monitor/forecasts.sql"
+    engine: "postgresql"
+    gen:
+      go:
+        out: "monitor/sqlc"
         sql_package: "pgx/v5"

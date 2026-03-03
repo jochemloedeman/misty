@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jochemloedeman/misty/internal/database"
 )
 
 func main() {

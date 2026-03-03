@@ -49,10 +49,10 @@ func (c AlertChange) NeedsNotification() bool {
 }
 
 type Monitor struct {
-	ID       uuid.UUID
-	IsActive bool
-	Location Location
-	Alert    *Alert
+	ID          uuid.UUID
+	IsActive    bool
+	Location    Location
+	ActiveAlert *Alert
 }
 
 func fogAlert(forecasts []Forecast) *Alert {
@@ -79,7 +79,7 @@ func fogAlert(forecasts []Forecast) *Alert {
 
 func (m Monitor) EvaluateAlert(forecasts []Forecast) AlertChange {
 	if !m.IsActive {
-		if m.Alert != nil {
+		if m.ActiveAlert != nil {
 			return AlertChange{Type: Revoked}
 		}
 		return AlertChange{}
@@ -88,14 +88,14 @@ func (m Monitor) EvaluateAlert(forecasts []Forecast) AlertChange {
 	newAlert := fogAlert(forecasts)
 
 	switch {
-	case newAlert == nil && m.Alert == nil:
+	case newAlert == nil && m.ActiveAlert == nil:
 		return AlertChange{}
-	case newAlert == nil && m.Alert != nil:
+	case newAlert == nil && m.ActiveAlert != nil:
 		return AlertChange{Type: Revoked}
-	case newAlert != nil && m.Alert == nil:
+	case newAlert != nil && m.ActiveAlert == nil:
 		return AlertChange{Type: New, Alert: newAlert}
-	case newAlert.Start.Equal(m.Alert.Start) && newAlert.End.Equal(m.Alert.End):
-		return AlertChange{Alert: m.Alert}
+	case newAlert.Start.Equal(m.ActiveAlert.Start) && newAlert.End.Equal(m.ActiveAlert.End):
+		return AlertChange{Alert: m.ActiveAlert}
 	default:
 		return AlertChange{Type: Changed, Alert: newAlert}
 	}

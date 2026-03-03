@@ -10,7 +10,7 @@ import (
 
 type MonitorStore interface {
 	ListActive(ctx context.Context) ([]Monitor, error)
-	Save(ctx context.Context, monitor Monitor) (Monitor, error)
+	UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *Alert) (Monitor, error)
 }
 
 type WeatherForecaster interface {
@@ -98,7 +98,6 @@ func (r *Refresher) RefreshMonitors(ctx context.Context) error {
 
 		alertChange := monitor.EvaluateAlert(forecasts)
 
-		monitor.Alert = alertChange.Alert
 		if alertChange.NeedsNotification() {
 			err = r.Outbox.AddNew(ctx, Notification{})
 			if err != nil {
@@ -106,11 +105,10 @@ func (r *Refresher) RefreshMonitors(ctx context.Context) error {
 			}
 		}
 		if alertChange.NeedsSave() {
-			if _, err := r.MonitorStore.Save(ctx, *monitor); err != nil {
+			if _, err := r.MonitorStore.UpdateAlert(ctx, monitor.ID, alertChange.Alert); err != nil {
 				return fmt.Errorf("failed to store monitor: %w", err)
 			}
 		}
-
 	}
 
 	return nil
