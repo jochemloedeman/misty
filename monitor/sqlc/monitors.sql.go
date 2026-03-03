@@ -15,7 +15,9 @@ const createMonitor = `-- name: CreateMonitor :one
 INSERT INTO
     monitors (
         id,
+        user_id,
         is_active,
+        location_name,
         latitude,
         longitude,
         alert_start,
@@ -28,23 +30,29 @@ VALUES
         $3,
         $4,
         $5,
-        $6
-    ) RETURNING id, is_active, latitude, longitude, alert_start, alert_end
+        $6,
+        $7,
+        $8
+    ) RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 `
 
 type CreateMonitorParams struct {
-	ID         pgtype.UUID
-	IsActive   bool
-	Latitude   float64
-	Longitude  float64
-	AlertStart pgtype.Timestamptz
-	AlertEnd   pgtype.Timestamptz
+	ID           pgtype.UUID
+	UserID       pgtype.UUID
+	IsActive     bool
+	LocationName string
+	Latitude     float64
+	Longitude    float64
+	AlertStart   pgtype.Timestamptz
+	AlertEnd     pgtype.Timestamptz
 }
 
 func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (Monitor, error) {
 	row := q.db.QueryRow(ctx, createMonitor,
 		arg.ID,
+		arg.UserID,
 		arg.IsActive,
+		arg.LocationName,
 		arg.Latitude,
 		arg.Longitude,
 		arg.AlertStart,
@@ -53,7 +61,9 @@ func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (M
 	var i Monitor
 	err := row.Scan(
 		&i.ID,
+		&i.UserID,
 		&i.IsActive,
+		&i.LocationName,
 		&i.Latitude,
 		&i.Longitude,
 		&i.AlertStart,
@@ -64,7 +74,7 @@ func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (M
 
 const listActiveMonitors = `-- name: ListActiveMonitors :many
 SELECT
-    id, is_active, latitude, longitude, alert_start, alert_end
+    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 FROM
     monitors
 WHERE
@@ -84,7 +94,9 @@ func (q *Queries) ListActiveMonitors(ctx context.Context) ([]Monitor, error) {
 		var i Monitor
 		if err := rows.Scan(
 			&i.ID,
+			&i.UserID,
 			&i.IsActive,
+			&i.LocationName,
 			&i.Latitude,
 			&i.Longitude,
 			&i.AlertStart,
@@ -102,7 +114,7 @@ func (q *Queries) ListActiveMonitors(ctx context.Context) ([]Monitor, error) {
 
 const listMonitors = `-- name: ListMonitors :many
 SELECT
-    id, is_active, latitude, longitude, alert_start, alert_end
+    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 FROM
     monitors
 ORDER BY
@@ -120,7 +132,9 @@ func (q *Queries) ListMonitors(ctx context.Context) ([]Monitor, error) {
 		var i Monitor
 		if err := rows.Scan(
 			&i.ID,
+			&i.UserID,
 			&i.IsActive,
+			&i.LocationName,
 			&i.Latitude,
 			&i.Longitude,
 			&i.AlertStart,
@@ -143,7 +157,7 @@ SET
     alert_start = $1,
     alert_end = $2
 WHERE
-    id = $3 RETURNING id, is_active, latitude, longitude, alert_start, alert_end
+    id = $3 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 `
 
 type UpdateMonitorAlertParams struct {
@@ -157,7 +171,9 @@ func (q *Queries) UpdateMonitorAlert(ctx context.Context, arg UpdateMonitorAlert
 	var i Monitor
 	err := row.Scan(
 		&i.ID,
+		&i.UserID,
 		&i.IsActive,
+		&i.LocationName,
 		&i.Latitude,
 		&i.Longitude,
 		&i.AlertStart,

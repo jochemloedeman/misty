@@ -39,28 +39,31 @@ func (w WeatherVariables) FogIsLikely() bool {
 }
 
 type Forecast struct {
-	Time time.Time
+	ForecastAt time.Time
 	WeatherVariables
 }
 
 type ForecastStore interface {
-	Save(ctx context.Context, monitorID uuid.UUID, forecasts []Forecast) error
+	Save(ctx context.Context, monitorID uuid.UUID, forecasts []Forecast) ([]Forecast, error)
 }
 
 type NotificationOutbox interface {
-	AddNew(ctx context.Context, not Notification) error
+	Create(ctx context.Context, notif Notification) (Notification, error)
 }
 
-type NotificationStatus string
-
-const (
-	Pending NotificationStatus = "pending"
-	Sent    NotificationStatus = "sent"
-)
-
 type Notification struct {
-	Message string
-	Status  NotificationStatus
+	ID          uuid.UUID
+	RecipientID uuid.UUID
+	Message     string
+	SentAt      time.Time
+}
+
+func NewNotification(recipientID uuid.UUID, message string) Notification {
+	return Notification{
+		ID:          uuid.New(),
+		RecipientID: recipientID,
+		Message:     message,
+	}
 }
 
 const horizon = 12 * time.Hour
@@ -91,7 +94,7 @@ func (r *Refresher) RefreshMonitors(ctx context.Context) error {
 			return fmt.Errorf("failed to forecast: %w", err)
 		}
 
-		err = r.ForecastStore.Save(ctx, monitor.ID, forecasts)
+		forecasts, err = r.ForecastStore.Save(ctx, monitor.ID, forecasts)
 		if err != nil {
 			return fmt.Errorf("failed to store forecasts: %w", err)
 		}
@@ -99,7 +102,16 @@ func (r *Refresher) RefreshMonitors(ctx context.Context) error {
 		alertChange := monitor.EvaluateAlert(forecasts)
 
 		if alertChange.NeedsNotification() {
-			err = r.Outbox.AddNew(ctx, Notification{})
+			notif := NewNotification(
+				monitor.UserID,
+				fmt.Sprintf(
+					"Fog alert for %s from %s to %s",
+					monitor.Location.Name,
+					alertChange.Alert.Start.Format(time.Kitchen),
+					alertChange.Alert.End.Format(time.Kitchen),
+				),
+			)
+			_, err = r.Outbox.Create(ctx, notif)
 			if err != nil {
 				return fmt.Errorf("failed to store notification: %w", err)
 			}

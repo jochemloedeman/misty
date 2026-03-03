@@ -11,62 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createForecast = `-- name: CreateForecast :one
-INSERT INTO
-    forecasts (
-        forecast_at,
-        monitor_id,
-        temperature,
-        dew_point,
-        relative_humidity,
-        wind_speed,
-        visibility
-    )
-VALUES
-    (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7
-    ) RETURNING forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility
-`
-
-type CreateForecastParams struct {
-	ForecastAt       pgtype.Timestamptz
-	MonitorID        pgtype.UUID
-	Temperature      float64
-	DewPoint         float64
-	RelativeHumidity float64
-	WindSpeed        float64
-	Visibility       int32
-}
-
-func (q *Queries) CreateForecast(ctx context.Context, arg CreateForecastParams) (Forecast, error) {
-	row := q.db.QueryRow(ctx, createForecast,
-		arg.ForecastAt,
-		arg.MonitorID,
-		arg.Temperature,
-		arg.DewPoint,
-		arg.RelativeHumidity,
-		arg.WindSpeed,
-		arg.Visibility,
-	)
-	var i Forecast
-	err := row.Scan(
-		&i.ForecastAt,
-		&i.MonitorID,
-		&i.Temperature,
-		&i.DewPoint,
-		&i.RelativeHumidity,
-		&i.WindSpeed,
-		&i.Visibility,
-	)
-	return i, err
-}
-
 const listForecastsByMonitorID = `-- name: ListForecastsByMonitorID :many
 SELECT
     forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility

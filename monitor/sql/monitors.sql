@@ -2,7 +2,9 @@
 INSERT INTO
     monitors (
         id,
+        user_id,
         is_active,
+        location_name,
         latitude,
         longitude,
         alert_start,
@@ -11,7 +13,9 @@ INSERT INTO
 VALUES
     (
         sqlc.arg('id'),
+        sqlc.arg('user_id'),
         sqlc.arg('is_active'),
+        sqlc.arg('location_name'),
         sqlc.arg('latitude'),
         sqlc.arg('longitude'),
         sqlc.arg('alert_start'),

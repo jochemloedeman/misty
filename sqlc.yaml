@@ -1,14 +1,21 @@
 version: "2"
 sql:
   - schema: "db/migrations"
-    queries: "monitor/monitors.sql"
+    queries: "monitor/sql/monitors.sql"
     engine: "postgresql"
     gen:
       go:
         out: "monitor/sqlc"
         sql_package: "pgx/v5"
   - schema: "db/migrations"
-    queries: "monitor/forecasts.sql"
+    queries: "monitor/sql/forecasts.sql"
+    engine: "postgresql"
+    gen:
+      go:
+        out: "monitor/sqlc"
+        sql_package: "pgx/v5"
+  - schema: "db/migrations"
+    queries: "monitor/sql/notifications.sql"
     engine: "postgresql"
     gen:
       go:

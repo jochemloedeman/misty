@@ -7,8 +7,9 @@ import (
 )
 
 type Location struct {
-	Lat float64
-	Lon float64
+	Name string
+	Lat  float64
+	Lon  float64
 }
 
 type Alert struct {
@@ -50,6 +51,7 @@ func (c AlertChange) NeedsNotification() bool {
 
 type Monitor struct {
 	ID          uuid.UUID
+	UserID      uuid.UUID
 	IsActive    bool
 	Location    Location
 	ActiveAlert *Alert
@@ -62,11 +64,11 @@ func fogAlert(forecasts []Forecast) *Alert {
 		if !forecast.FogIsLikely() {
 			continue
 		}
-		if !anyFog || forecast.Time.Before(start) {
-			start = forecast.Time
+		if !anyFog || forecast.ForecastAt.Before(start) {
+			start = forecast.ForecastAt
 		}
-		if forecast.Time.After(end) {
-			end = forecast.Time
+		if forecast.ForecastAt.After(end) {
+			end = forecast.ForecastAt
 		}
 		anyFog = true
 	}

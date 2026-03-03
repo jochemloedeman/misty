@@ -10,11 +10,12 @@ import (
 	"github.com/jochemloedeman/misty/monitor/sqlc"
 )
 
-func toDomain(row sqlc.Monitor) Monitor {
+func toDomainMonitor(row sqlc.Monitor) Monitor {
 	m := Monitor{
 		ID:       uuid.UUID(row.ID.Bytes),
+		UserID:   uuid.UUID(row.UserID.Bytes),
 		IsActive: row.IsActive,
-		Location: Location{Lat: row.Latitude, Lon: row.Longitude},
+		Location: Location{Name: row.LocationName, Lat: row.Latitude, Lon: row.Longitude},
 	}
 	if row.AlertStart.Valid {
 		m.ActiveAlert = &Alert{
@@ -51,17 +52,19 @@ func (s *PostgresMonitorStore) ListActive(ctx context.Context) ([]Monitor, error
 	}
 	monitors := make([]Monitor, len(rows))
 	for i, row := range rows {
-		monitors[i] = toDomain(row)
+		monitors[i] = toDomainMonitor(row)
 	}
 	return monitors, nil
 }
 
 func (s *PostgresMonitorStore) Create(ctx context.Context, monitor Monitor) (Monitor, error) {
 	params := sqlc.CreateMonitorParams{
-		ID:        dbUUID(monitor.ID),
-		IsActive:  monitor.IsActive,
-		Latitude:  monitor.Location.Lat,
-		Longitude: monitor.Location.Lon,
+		ID:           dbUUID(monitor.ID),
+		UserID:       dbUUID(monitor.UserID),
+		IsActive:     monitor.IsActive,
+		LocationName: monitor.Location.Name,
+		Latitude:     monitor.Location.Lat,
+		Longitude:    monitor.Location.Lon,
 	}
 	if monitor.ActiveAlert != nil {
 		params.AlertStart = dbTime(monitor.ActiveAlert.Start)
@@ -72,7 +75,7 @@ func (s *PostgresMonitorStore) Create(ctx context.Context, monitor Monitor) (Mon
 		return Monitor{}, fmt.Errorf("failed to create monitor: %w", err)
 	}
 
-	return toDomain(row), nil
+	return toDomainMonitor(row), nil
 }
 
 func (s *PostgresMonitorStore) UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *Alert) (Monitor, error) {
@@ -85,5 +88,5 @@ func (s *PostgresMonitorStore) UpdateAlert(ctx context.Context, monitorID uuid.U
 	if err != nil {
 		return Monitor{}, fmt.Errorf("failed to update monitor: %w", err)
 	}
-	return toDomain(row), nil
+	return toDomainMonitor(row), nil
 }
