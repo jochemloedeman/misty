@@ -13,7 +13,7 @@ type MonitorStore interface {
 	UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *Alert) (Monitor, error)
 }
 
-type WeatherForecaster interface {
+type Forecaster interface {
 	Forecast(ctx context.Context, location Location, timeRange TimeRange) ([]Forecast, error)
 }
 
@@ -30,7 +30,7 @@ type WeatherVariables struct {
 	Visibility       int     `unit:"m"`
 }
 
-func (w WeatherVariables) FogIsLikely() bool {
+func (w WeatherVariables) IsFogLikely() bool {
 	dewPointClose := (w.Temperature - w.DewPoint) < 2.5
 	poorVisibility := w.Visibility < 1000
 	highHumidity := w.RelativeHumidity > 95
@@ -39,7 +39,7 @@ func (w WeatherVariables) FogIsLikely() bool {
 }
 
 type Forecast struct {
-	ForecastAt time.Time
+	Time time.Time
 	WeatherVariables
 }
 
@@ -66,63 +66,85 @@ func NewNotification(recipientID uuid.UUID, message string) Notification {
 	}
 }
 
-const horizon = 12 * time.Hour
+const forecastHorizon = 12 * time.Hour
 
-type Refresher struct {
-	Forecaster    WeatherForecaster
+type RunInTx func(ctx context.Context, fn func(s TxStores) error) error
+
+type Evaluator struct {
+	forecaster   Forecaster
+	monitorStore MonitorStore
+	inTx         RunInTx
+}
+
+func NewEvaluator(forecaster Forecaster, monitorStore MonitorStore, inTx RunInTx) *Evaluator {
+	return &Evaluator{
+		forecaster:   forecaster,
+		monitorStore: monitorStore,
+		inTx:         inTx,
+	}
+}
+
+type TxStores struct {
 	MonitorStore  MonitorStore
 	ForecastStore ForecastStore
 	Outbox        NotificationOutbox
 }
 
-func (r *Refresher) RefreshMonitors(ctx context.Context) error {
-	activeMonitors, err := r.MonitorStore.ListActive(ctx)
+func (r *Evaluator) Evaluate(ctx context.Context) error {
+	monitors, err := r.monitorStore.ListActive(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to fetch monitors: %w", err)
+		return fmt.Errorf("list active monitors: %w", err)
 	}
 
 	now := time.Now()
-	timeRange := TimeRange{
-		Start: now,
-		End:   now.Add(horizon),
+	forecastRange := TimeRange{Start: now, End: now.Add(forecastHorizon)}
+
+	for i := range monitors {
+		if err := r.evaluateMonitor(ctx, monitors[i], forecastRange); err != nil {
+			return fmt.Errorf("evaluate monitor %s: %w", monitors[i].ID, err)
+		}
+	}
+	return nil
+}
+
+func (r *Evaluator) evaluateMonitor(ctx context.Context, monitor Monitor, forecastRange TimeRange) error {
+	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, forecastRange)
+	if err != nil {
+		return fmt.Errorf("forecast: %w", err)
 	}
 
-	for i := range activeMonitors {
-		monitor := &activeMonitors[i]
-		forecasts, err := r.Forecaster.Forecast(ctx, monitor.Location, timeRange)
-		if err != nil {
-			return fmt.Errorf("failed to forecast: %w", err)
-		}
+	alertChange := monitor.EvaluateAlert(forecasts)
 
-		forecasts, err = r.ForecastStore.Save(ctx, monitor.ID, forecasts)
-		if err != nil {
-			return fmt.Errorf("failed to store forecasts: %w", err)
-		}
+	return r.inTx(ctx, func(s TxStores) error {
+		return persist(ctx, s, monitor, forecasts, alertChange)
+	})
+}
 
-		alertChange := monitor.EvaluateAlert(forecasts)
+func persist(ctx context.Context, s TxStores, monitor Monitor, forecasts []Forecast, ac AlertChange) error {
+	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
+		return fmt.Errorf("save forecasts: %w", err)
+	}
 
-		if alertChange.NeedsNotification() {
-			notif := NewNotification(
-				monitor.UserID,
-				fmt.Sprintf(
-					"Fog alert for %s from %s to %s",
-					monitor.Location.Name,
-					alertChange.Alert.Start.Format(time.Kitchen),
-					alertChange.Alert.End.Format(time.Kitchen),
-				),
-			)
-			_, err = r.Outbox.Create(ctx, notif)
-			if err != nil {
-				return fmt.Errorf("failed to store notification: %w", err)
-			}
+	if ac.NeedsNotification() {
+		notif := NewNotification(monitor.UserID, fogAlertMessage(monitor, ac))
+		if _, err := s.Outbox.Create(ctx, notif); err != nil {
+			return fmt.Errorf("create notification: %w", err)
 		}
-		if alertChange.NeedsSave() {
-			if _, err := r.MonitorStore.UpdateAlert(ctx, monitor.ID, alertChange.Alert); err != nil {
-				return fmt.Errorf("failed to store monitor: %w", err)
-			}
+	}
+
+	if ac.NeedsSave() {
+		if _, err := s.MonitorStore.UpdateAlert(ctx, monitor.ID, ac.Alert); err != nil {
+			return fmt.Errorf("update alert: %w", err)
 		}
 	}
 
 	return nil
+}
 
+func fogAlertMessage(m Monitor, ac AlertChange) string {
+	return fmt.Sprintf("Fog alert for %s from %s to %s",
+		m.Location.Name,
+		ac.Alert.Start.Format(time.Kitchen),
+		ac.Alert.End.Format(time.Kitchen),
+	)
 }

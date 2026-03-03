@@ -61,14 +61,14 @@ func fogAlert(forecasts []Forecast) *Alert {
 	var start, end time.Time
 	var anyFog bool
 	for _, forecast := range forecasts {
-		if !forecast.FogIsLikely() {
+		if !forecast.IsFogLikely() {
 			continue
 		}
-		if !anyFog || forecast.ForecastAt.Before(start) {
-			start = forecast.ForecastAt
+		if !anyFog || forecast.Time.Before(start) {
+			start = forecast.Time
 		}
-		if forecast.ForecastAt.After(end) {
-			end = forecast.ForecastAt
+		if forecast.Time.After(end) {
+			end = forecast.Time
 		}
 		anyFog = true
 	}

@@ -10,7 +10,7 @@ import (
 
 func toDomainForecast(row sqlc.Forecast) Forecast {
 	f := Forecast{
-		ForecastAt: row.ForecastAt.Time,
+		Time: row.ForecastAt.Time,
 		WeatherVariables: WeatherVariables{
 			Temperature:      row.Temperature,
 			DewPoint:         row.DewPoint,
@@ -48,7 +48,7 @@ func (s *PostgresForecastStore) Save(ctx context.Context, monitorID uuid.UUID, f
 	params := make([]sqlc.UpsertForecastParams, len(forecasts))
 	for i, forecast := range forecasts {
 		params[i] = sqlc.UpsertForecastParams{
-			ForecastAt:       dbTime(forecast.ForecastAt),
+			ForecastAt:       dbTime(forecast.Time),
 			Temperature:      forecast.WeatherVariables.Temperature,
 			DewPoint:         forecast.WeatherVariables.DewPoint,
 			RelativeHumidity: forecast.WeatherVariables.RelativeHumidity,
