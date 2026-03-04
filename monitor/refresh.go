@@ -68,23 +68,23 @@ func NewNotification(recipientID uuid.UUID, message string) Notification {
 
 const forecastHorizon = 12 * time.Hour
 
-type RunInTx func(ctx context.Context, fn func(s TxStores) error) error
+type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
 
 type Evaluator struct {
 	forecaster   Forecaster
 	monitorStore MonitorStore
-	inTx         RunInTx
+	runAtom      RunAtomically
 }
 
-func NewEvaluator(forecaster Forecaster, monitorStore MonitorStore, inTx RunInTx) *Evaluator {
+func NewEvaluator(forecaster Forecaster, monitorStore MonitorStore, runAtom RunAtomically) *Evaluator {
 	return &Evaluator{
 		forecaster:   forecaster,
 		monitorStore: monitorStore,
-		inTx:         inTx,
+		runAtom:      runAtom,
 	}
 }
 
-type TxStores struct {
+type AtomicStores struct {
 	MonitorStore  MonitorStore
 	ForecastStore ForecastStore
 	Outbox        NotificationOutbox
@@ -115,12 +115,12 @@ func (r *Evaluator) evaluateMonitor(ctx context.Context, monitor Monitor, foreca
 
 	alertChange := monitor.EvaluateAlert(forecasts)
 
-	return r.inTx(ctx, func(s TxStores) error {
+	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, alertChange)
 	})
 }
 
-func persist(ctx context.Context, s TxStores, monitor Monitor, forecasts []Forecast, ac AlertChange) error {
+func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []Forecast, ac AlertChange) error {
 	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
 		return fmt.Errorf("save forecasts: %w", err)
 	}
