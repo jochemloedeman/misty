@@ -1,15 +1,16 @@
-package monitor
+package postgres
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jochemloedeman/misty/monitor/sqlc"
+	"github.com/jochemloedeman/misty/monitor"
+	"github.com/jochemloedeman/misty/monitor/postgres/sqlc"
 )
 
-func toDomainNotification(row sqlc.Notification) Notification {
-	return Notification{
+func toDomainNotification(row sqlc.Notification) monitor.Notification {
+	return monitor.Notification{
 		ID:          uuid.UUID(row.ID.Bytes),
 		RecipientID: uuid.UUID(row.RecipientID.Bytes),
 		Message:     row.Message,
@@ -17,15 +18,15 @@ func toDomainNotification(row sqlc.Notification) Notification {
 	}
 }
 
-type PostgresNotificationOutbox struct {
+type NotificationOutbox struct {
 	queries *sqlc.Queries
 }
 
-func NewPostgresNotificationOutbox(queries *sqlc.Queries) *PostgresNotificationOutbox {
-	return &PostgresNotificationOutbox{queries: queries}
+func NewNotificationOutbox(queries *sqlc.Queries) *NotificationOutbox {
+	return &NotificationOutbox{queries: queries}
 }
 
-func (o *PostgresNotificationOutbox) Create(ctx context.Context, notif Notification) (Notification, error) {
+func (o *NotificationOutbox) Create(ctx context.Context, notif monitor.Notification) (monitor.Notification, error) {
 	params := sqlc.CreateNotificationParams{
 		ID:          dbUUID(notif.ID),
 		RecipientID: dbUUID(notif.RecipientID),
@@ -34,17 +35,17 @@ func (o *PostgresNotificationOutbox) Create(ctx context.Context, notif Notificat
 	}
 	row, err := o.queries.CreateNotification(ctx, params)
 	if err != nil {
-		return Notification{}, fmt.Errorf("failed to create notification: %w", err)
+		return monitor.Notification{}, fmt.Errorf("failed to create notification: %w", err)
 	}
 	return toDomainNotification(row), nil
 }
 
-func (o *PostgresNotificationOutbox) ListUnsent(ctx context.Context) ([]Notification, error) {
+func (o *NotificationOutbox) ListUnsent(ctx context.Context) ([]monitor.Notification, error) {
 	rows, err := o.queries.ListUnsentNotifications(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list unsent notifications: %w", err)
 	}
-	notifs := make([]Notification, len(rows))
+	notifs := make([]monitor.Notification, len(rows))
 	for i, row := range rows {
 		notifs[i] = toDomainNotification(row)
 	}
