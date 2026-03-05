@@ -73,9 +73,9 @@ func (f FakeForecaster) Forecast(ctx context.Context, location monitor.Location,
 		}
 		return forecasts, nil
 	}
-	foggyForecast := rand.Float64() < f.chanceOfForecastIfFog
-	fmt.Printf("foggy forecast: %t\n", foggyForecast)
 	for i := 0; i < horizon.Steps; i++ {
+		foggyForecast := rand.Float64() < f.chanceOfForecastIfFog
+		fmt.Printf("foggy forecast: %t\n", foggyForecast)
 		timeOffset := time.Duration(i) * horizon.Granularity
 		if foggyForecast {
 			forecasts[i] = fogForecast(now.Add(timeOffset))

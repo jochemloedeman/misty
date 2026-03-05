@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/monitor"
-	"github.com/jochemloedeman/misty/monitor/postgres/sqlc"
+	"github.com/jochemloedeman/misty/db/sqlc"
 )
 
 func NewRunAtomically(pool *pgxpool.Pool) monitor.RunAtomically {

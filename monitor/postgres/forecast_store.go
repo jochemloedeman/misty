@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/monitor"
-	"github.com/jochemloedeman/misty/monitor/postgres/sqlc"
+	"github.com/jochemloedeman/misty/db/sqlc"
 )
 
 func toDomainForecast(row sqlc.Forecast) monitor.Forecast {

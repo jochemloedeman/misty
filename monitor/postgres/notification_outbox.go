@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/monitor"
-	"github.com/jochemloedeman/misty/monitor/postgres/sqlc"
+	"github.com/jochemloedeman/misty/db/sqlc"
 )
 
 func toDomainNotification(row sqlc.Notification) monitor.Notification {

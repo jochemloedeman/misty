@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/users"
-	"github.com/jochemloedeman/misty/users/postgres/sqlc"
 )
 
 type UserStore struct {

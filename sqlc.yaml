@@ -1,30 +1,10 @@
 version: "2"
 sql:
   - schema: "db/migrations"
-    queries: "db/query/monitors.sql"
+    queries: "db/query"
     engine: "postgresql"
     gen:
       go:
-        out: "monitor/postgres/sqlc"
-        sql_package: "pgx/v5"
-  - schema: "db/migrations"
-    queries: "db/query/notifications.sql"
-    engine: "postgresql"
-    gen:
-      go:
-        out: "monitor/postgres/sqlc"
-        sql_package: "pgx/v5"
-  - schema: "db/migrations"
-    queries: "db/query/forecasts.sql"
-    engine: "postgresql"
-    gen:
-      go:
-        out: "monitor/postgres/sqlc"
-        sql_package: "pgx/v5"
-  - schema: "db/migrations"
-    queries: "db/query/users.sql"
-    engine: "postgresql"
-    gen:
-      go:
-        out: "users/postgres/sqlc"
+        package: "sqlc"
+        out: "db/sqlc"
         sql_package: "pgx/v5"
