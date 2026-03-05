@@ -2,7 +2,10 @@ module github.com/jochemloedeman/misty
 
 go 1.25.0
 
-require github.com/google/uuid v1.6.0
+require (
+	github.com/google/go-cmp v0.7.0
+	github.com/google/uuid v1.6.0
+)
 
 require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

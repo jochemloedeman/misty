@@ -57,7 +57,16 @@ type Monitor struct {
 	ActiveAlert *Alert
 }
 
-func fogAlert(forecasts []Forecast) *Alert {
+func NewMonitor(userID uuid.UUID, location Location) Monitor {
+	return Monitor{
+		ID:       uuid.New(),
+		UserID:   userID,
+		IsActive: true,
+		Location: location,
+	}
+}
+
+func detectFog(forecasts []Forecast) *Alert {
 	var start, end time.Time
 	var anyFog bool
 	for _, forecast := range forecasts {
@@ -79,15 +88,8 @@ func fogAlert(forecasts []Forecast) *Alert {
 	return &Alert{Start: start, End: end}
 }
 
-func (m Monitor) EvaluateAlert(forecasts []Forecast) AlertChange {
-	if !m.IsActive {
-		if m.ActiveAlert != nil {
-			return AlertChange{Type: Revoked}
-		}
-		return AlertChange{}
-	}
-
-	newAlert := fogAlert(forecasts)
+func (m Monitor) ReconcileAlert(forecasts []Forecast) AlertChange {
+	newAlert := detectFog(forecasts)
 
 	switch {
 	case newAlert == nil && m.ActiveAlert == nil:

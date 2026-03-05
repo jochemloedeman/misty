@@ -14,12 +14,12 @@ type MonitorStore interface {
 }
 
 type Forecaster interface {
-	Forecast(ctx context.Context, location Location, timeRange TimeRange) ([]Forecast, error)
+	Forecast(ctx context.Context, location Location, horizon ForecastHorizon) ([]Forecast, error)
 }
 
-type TimeRange struct {
-	Start time.Time
-	End   time.Time
+type ForecastHorizon struct {
+	Granularity time.Duration
+	Steps       int
 }
 
 type WeatherVariables struct {
@@ -66,18 +66,16 @@ func NewNotification(recipientID uuid.UUID, message string) Notification {
 	}
 }
 
-const forecastHorizon = 12 * time.Hour
-
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
 
-type Evaluator struct {
+type Refresher struct {
 	forecaster   Forecaster
 	monitorStore MonitorStore
 	runAtom      RunAtomically
 }
 
-func NewEvaluator(forecaster Forecaster, monitorStore MonitorStore, runAtom RunAtomically) *Evaluator {
-	return &Evaluator{
+func NewRefresher(forecaster Forecaster, monitorStore MonitorStore, runAtom RunAtomically) *Refresher {
+	return &Refresher{
 		forecaster:   forecaster,
 		monitorStore: monitorStore,
 		runAtom:      runAtom,
@@ -90,30 +88,27 @@ type AtomicStores struct {
 	Outbox        NotificationOutbox
 }
 
-func (r *Evaluator) Evaluate(ctx context.Context) error {
+func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) error {
 	monitors, err := r.monitorStore.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("list active monitors: %w", err)
 	}
 
-	now := time.Now()
-	forecastRange := TimeRange{Start: now, End: now.Add(forecastHorizon)}
-
 	for i := range monitors {
-		if err := r.evaluateMonitor(ctx, monitors[i], forecastRange); err != nil {
-			return fmt.Errorf("evaluate monitor %s: %w", monitors[i].ID, err)
+		if err := r.refresh(ctx, monitors[i], horizon); err != nil {
+			return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
 		}
 	}
 	return nil
 }
 
-func (r *Evaluator) evaluateMonitor(ctx context.Context, monitor Monitor, forecastRange TimeRange) error {
-	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, forecastRange)
+func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon ForecastHorizon) error {
+	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
 	if err != nil {
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	alertChange := monitor.EvaluateAlert(forecasts)
+	alertChange := monitor.ReconcileAlert(forecasts)
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, alertChange)
