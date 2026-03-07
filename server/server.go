@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -17,8 +18,10 @@ const userIDKey contextKey = "userID"
 
 type MonitorStore interface {
 	List(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error)
-	Get(ctx context.Context, monitorID uuid.UUID) (monitor.Monitor, error)
+	Get(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) (monitor.Monitor, error)
 	Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
+	Update(ctx context.Context, userID uuid.UUID, m monitor.Monitor) (monitor.Monitor, error)
+	Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error
 }
 
 type LocationResponse struct {
@@ -68,11 +71,30 @@ func New(monitorStore MonitorStore) *Server {
 	}
 }
 
+func (s *Server) RequireUser(next http.Handler) http.Handler {
+	// TODO: replace with real authentication
+	const hardcodedUser = "550e8400-e29b-41d4-a716-446655440000"
+	id := uuid.MustParse(hardcodedUser)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userIDKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func userID(ctx context.Context) uuid.UUID {
+	// panics is intentional here. If the userID is not set,
+	// it means RequireUser middleware was not used, which is a programming error.
+	return ctx.Value(userIDKey).(uuid.UUID)
+}
+
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-func writeError(w http.ResponseWriter, status int) {
+func writeError(w http.ResponseWriter, status int, err error) {
+	if status >= 500 {
+		slog.Error("Server error", "status", status, "error", err)
+	}
 	writeJSON(w, status, ErrorResponse{Error: http.StatusText(status)})
 }
 
@@ -85,15 +107,11 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func (s *Server) ListMonitors(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(userIDKey).(uuid.UUID)
-	if !ok {
-		writeError(w, http.StatusUnauthorized)
-		return
-	}
+	uid := userID(r.Context())
 
-	monitors, err := s.monitorStore.List(r.Context(), userID)
+	monitors, err := s.monitorStore.List(r.Context(), uid)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	res := make([]MonitorResponse, len(monitors))
@@ -104,26 +122,22 @@ func (s *Server) ListMonitors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMonitor(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(userIDKey).(uuid.UUID)
-	if !ok {
-		writeError(w, http.StatusUnauthorized)
-		return
-	}
+	uid := userID(r.Context())
 
 	monitorID := r.PathValue("id")
-	id, err := uuid.Parse(monitorID)
+	mid, err := uuid.Parse(monitorID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	m, err := s.monitorStore.Get(r.Context(), id)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+	m, err := s.monitorStore.Get(r.Context(), uid, mid)
+	if errors.Is(err, monitor.ErrNotFound) {
+		writeError(w, http.StatusNotFound, err)
 		return
 	}
-	if m.UserID != userID {
-		writeError(w, http.StatusForbidden)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -132,11 +146,7 @@ func (s *Server) GetMonitor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(userIDKey).(uuid.UUID)
-	if !ok {
-		writeError(w, http.StatusUnauthorized)
-		return
-	}
+	uid := userID(r.Context())
 
 	type params struct {
 		LocationName string  `json:"location_name"`
@@ -145,23 +155,21 @@ func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	m := monitor.Monitor{
-		ID:       uuid.New(),
-		UserID:   userID,
-		IsActive: true,
-		Location: monitor.Location{
+	m := monitor.NewMonitor(
+		uid,
+		monitor.Location{
 			Name: p.LocationName,
 			Lat:  p.Lat,
 			Lon:  p.Lon,
 		},
-	}
+	)
 	created, err := s.monitorStore.Create(r.Context(), m)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -169,6 +177,60 @@ func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, res)
 }
 
-func (s *Server) UpdateMonitor(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+func (s *Server) SetMonitorStatus(activate bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid := userID(r.Context())
+
+		mid, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		m, err := s.monitorStore.Get(r.Context(), uid, mid)
+		if errors.Is(err, monitor.ErrNotFound) {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		if activate {
+			m = m.Activate()
+		} else {
+			m = m.Deactivate()
+		}
+
+		updated, err := s.monitorStore.Update(r.Context(), uid, m)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, toMonitorResponse(updated))
+	}
+}
+
+func (s *Server) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r.Context())
+
+	mid, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	err = s.monitorStore.Delete(r.Context(), uid, mid)
+	if errors.Is(err, monitor.ErrNotFound) {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

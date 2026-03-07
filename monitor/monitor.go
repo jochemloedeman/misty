@@ -1,10 +1,13 @@
 package monitor
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrNotFound = errors.New("monitor not found")
 
 type Location struct {
 	Name string
@@ -107,4 +110,22 @@ func (m Monitor) ReconcileAlert(now time.Time, forecasts []Forecast) AlertChange
 	default:
 		return AlertChange{Type: Changed, Alert: newAlert}
 	}
+}
+
+func (m Monitor) Deactivate() Monitor {
+	if !m.IsActive {
+		return m
+	}
+	m.IsActive = false
+	m.ActiveAlert = nil
+	return m
+
+}
+
+func (m Monitor) Activate() Monitor {
+	if m.IsActive {
+		return m
+	}
+	m.IsActive = true
+	return m
 }

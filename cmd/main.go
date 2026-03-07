@@ -28,9 +28,11 @@ func runServer() error {
 	mux.HandleFunc("GET /monitors", srv.ListMonitors)
 	mux.HandleFunc("GET /monitors/{id}", srv.GetMonitor)
 	mux.HandleFunc("POST /monitors", srv.CreateMonitor)
-	mux.HandleFunc("PUT /monitors/{id}", srv.UpdateMonitor)
+	mux.HandleFunc("POST /monitors/{id}/deactivate", srv.SetMonitorStatus(false))
+	mux.HandleFunc("POST /monitors/{id}/activate", srv.SetMonitorStatus(true))
+	mux.HandleFunc("DELETE /monitors/{id}", srv.DeleteMonitor)
 
-	return http.ListenAndServe(":8080", mux)
+	return http.ListenAndServe(":8080", srv.RequireUser(mux))
 }
 
 func main() {

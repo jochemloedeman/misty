@@ -42,13 +42,14 @@ WHERE
 ORDER BY
     id;
 
--- name: GetByID :one
+-- name: GetByMonitorID :one
 SELECT
     *
 FROM
     monitors
 WHERE
-    id = sqlc.arg('id');
+    id = sqlc.arg('id')
+    AND user_id = sqlc.arg('user_id');
 
 -- name: UpdateMonitorAlert :one
 UPDATE
@@ -57,5 +58,23 @@ SET
     alert_start = sqlc.arg('alert_start'),
     alert_end = sqlc.arg('alert_end')
 WHERE
+    id = sqlc.arg('id') RETURNING *;
+
+-- name: UpdateMonitor :one
+UPDATE
+    monitors
+SET
+    is_active = sqlc.arg('is_active'),
+    alert_start = sqlc.arg('alert_start'),
+    alert_end = sqlc.arg('alert_end')
+WHERE
     id = sqlc.arg('id')
-    AND user_id = sqlc.arg('user_id') RETURNING *;
+    AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteMonitor :execresult
+DELETE FROM
+    monitors
+WHERE
+    id = sqlc.arg('id')
+    AND user_id = sqlc.arg('user_id');

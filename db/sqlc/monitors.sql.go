@@ -8,6 +8,7 @@ package sqlc
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -72,17 +73,40 @@ func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (M
 	return i, err
 }
 
-const getByID = `-- name: GetByID :one
+const deleteMonitor = `-- name: DeleteMonitor :execresult
+DELETE FROM
+    monitors
+WHERE
+    id = $1
+    AND user_id = $2
+`
+
+type DeleteMonitorParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) DeleteMonitor(ctx context.Context, arg DeleteMonitorParams) (pgconn.CommandTag, error) {
+	return q.db.Exec(ctx, deleteMonitor, arg.ID, arg.UserID)
+}
+
+const getByMonitorID = `-- name: GetByMonitorID :one
 SELECT
     id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 FROM
     monitors
 WHERE
     id = $1
+    AND user_id = $2
 `
 
-func (q *Queries) GetByID(ctx context.Context, id pgtype.UUID) (Monitor, error) {
-	row := q.db.QueryRow(ctx, getByID, id)
+type GetByMonitorIDParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) GetByMonitorID(ctx context.Context, arg GetByMonitorIDParams) (Monitor, error) {
+	row := q.db.QueryRow(ctx, getByMonitorID, arg.ID, arg.UserID)
 	var i Monitor
 	err := row.Scan(
 		&i.ID,
@@ -177,6 +201,49 @@ func (q *Queries) ListMonitors(ctx context.Context, userID pgtype.UUID) ([]Monit
 	return items, nil
 }
 
+const updateMonitor = `-- name: UpdateMonitor :one
+UPDATE
+    monitors
+SET
+    is_active = $1,
+    alert_start = $2,
+    alert_end = $3
+WHERE
+    id = $4
+    AND user_id = $5
+RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+`
+
+type UpdateMonitorParams struct {
+	IsActive   bool
+	AlertStart pgtype.Timestamptz
+	AlertEnd   pgtype.Timestamptz
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+}
+
+func (q *Queries) UpdateMonitor(ctx context.Context, arg UpdateMonitorParams) (Monitor, error) {
+	row := q.db.QueryRow(ctx, updateMonitor,
+		arg.IsActive,
+		arg.AlertStart,
+		arg.AlertEnd,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Monitor
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.IsActive,
+		&i.LocationName,
+		&i.Latitude,
+		&i.Longitude,
+		&i.AlertStart,
+		&i.AlertEnd,
+	)
+	return i, err
+}
+
 const updateMonitorAlert = `-- name: UpdateMonitorAlert :one
 UPDATE
     monitors
@@ -184,24 +251,17 @@ SET
     alert_start = $1,
     alert_end = $2
 WHERE
-    id = $3
-    AND user_id = $4 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    id = $3 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 `
 
 type UpdateMonitorAlertParams struct {
 	AlertStart pgtype.Timestamptz
 	AlertEnd   pgtype.Timestamptz
 	ID         pgtype.UUID
-	UserID     pgtype.UUID
 }
 
 func (q *Queries) UpdateMonitorAlert(ctx context.Context, arg UpdateMonitorAlertParams) (Monitor, error) {
-	row := q.db.QueryRow(ctx, updateMonitorAlert,
-		arg.AlertStart,
-		arg.AlertEnd,
-		arg.ID,
-		arg.UserID,
-	)
+	row := q.db.QueryRow(ctx, updateMonitorAlert, arg.AlertStart, arg.AlertEnd, arg.ID)
 	var i Monitor
 	err := row.Scan(
 		&i.ID,

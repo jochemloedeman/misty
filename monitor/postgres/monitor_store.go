@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/monitor"
 )
@@ -35,6 +37,7 @@ func NewMonitorStore(q *sqlc.Queries) *MonitorStore {
 
 func (s *MonitorStore) List(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error) {
 	rows, err := s.queries.ListMonitors(ctx, dbUUID(userID))
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
 	}
@@ -47,6 +50,7 @@ func (s *MonitorStore) List(ctx context.Context, userID uuid.UUID) ([]monitor.Mo
 
 func (s *MonitorStore) ListAllActive(ctx context.Context) ([]monitor.Monitor, error) {
 	rows, err := s.queries.ListActiveMonitors(ctx)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
 	}
@@ -57,8 +61,15 @@ func (s *MonitorStore) ListAllActive(ctx context.Context) ([]monitor.Monitor, er
 	return monitors, nil
 }
 
-func (s *MonitorStore) Get(ctx context.Context, monitorID uuid.UUID) (monitor.Monitor, error) {
-	row, err := s.queries.GetByID(ctx, dbUUID(monitorID))
+func (s *MonitorStore) Get(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) (monitor.Monitor, error) {
+	args := sqlc.GetByMonitorIDParams{
+		ID:     dbUUID(monitorID),
+		UserID: dbUUID(userID),
+	}
+	row, err := s.queries.GetByMonitorID(ctx, args)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return monitor.Monitor{}, monitor.ErrNotFound
+	}
 	if err != nil {
 		return monitor.Monitor{}, fmt.Errorf("failed to get monitor: %w", err)
 	}
@@ -97,4 +108,38 @@ func (s *MonitorStore) UpdateAlert(ctx context.Context, monitorID uuid.UUID, ale
 		return monitor.Monitor{}, fmt.Errorf("failed to update monitor: %w", err)
 	}
 	return toDomainMonitor(row), nil
+}
+
+func (s *MonitorStore) Update(ctx context.Context, userID uuid.UUID, m monitor.Monitor) (monitor.Monitor, error) {
+	params := sqlc.UpdateMonitorParams{
+		ID:       dbUUID(m.ID),
+		UserID:   dbUUID(userID),
+		IsActive: m.IsActive,
+	}
+	if m.ActiveAlert != nil {
+		params.AlertStart = dbTime(m.ActiveAlert.Start)
+		params.AlertEnd = dbTime(m.ActiveAlert.End)
+	}
+	row, err := s.queries.UpdateMonitor(ctx, params)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return monitor.Monitor{}, monitor.ErrNotFound
+	}
+	if err != nil {
+		return monitor.Monitor{}, fmt.Errorf("update monitor: %w", err)
+	}
+	return toDomainMonitor(row), nil
+}
+
+func (s *MonitorStore) Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error {
+	result, err := s.queries.DeleteMonitor(ctx, sqlc.DeleteMonitorParams{
+		ID:     dbUUID(monitorID),
+		UserID: dbUUID(userID),
+	})
+	if err != nil {
+		return fmt.Errorf("delete monitor: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return monitor.ErrNotFound
+	}
+	return nil
 }
