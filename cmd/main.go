@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/monitor/postgres"
 	"github.com/jochemloedeman/misty/server"
+	"github.com/jochemloedeman/misty/users"
+	userdb "github.com/jochemloedeman/misty/users/postgres"
 )
 
 func runServer() error {
@@ -21,6 +24,10 @@ func runServer() error {
 	defer pool.Close()
 
 	queries := sqlc.New(pool)
+
+	if err := seedDevUser(context.Background(), queries); err != nil {
+		return fmt.Errorf("failed to seed dev user: %w", err)
+	}
 
 	srv := server.New(postgres.NewMonitorStore(queries))
 
@@ -35,8 +42,14 @@ func runServer() error {
 	return http.ListenAndServe(":8080", srv.RequireUser(mux))
 }
 
+func seedDevUser(ctx context.Context, q *sqlc.Queries) error {
+	devUser := users.User{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001")}
+	userStore := userdb.NewUserStore(q)
+	return userStore.Ensure(ctx, devUser)
+}
+
 func main() {
 	if err := runServer(); err != nil {
-		log.Fatal("Unable to create connection pool: ", err)
+		log.Fatal(err)
 	}
 }

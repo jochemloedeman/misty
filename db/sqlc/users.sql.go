@@ -23,3 +23,15 @@ func (q *Queries) CreateUser(ctx context.Context, id pgtype.UUID) (pgtype.UUID, 
 	err := row.Scan(&id)
 	return id, err
 }
+
+const ensureUser = `-- name: EnsureUser :exec
+INSERT INTO
+    users (id)
+VALUES
+    ($1) ON CONFLICT (id) DO NOTHING
+`
+
+func (q *Queries) EnsureUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, ensureUser, id)
+	return err
+}

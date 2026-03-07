@@ -26,6 +26,13 @@ func (s *UserStore) Create(ctx context.Context, u users.User) (users.User, error
 	return users.User{ID: uuid.UUID(id.Bytes)}, nil
 }
 
+func (s *UserStore) Ensure(ctx context.Context, u users.User) error {
+	if err := s.queries.EnsureUser(ctx, dbUUID(u.ID)); err != nil {
+		return fmt.Errorf("failed to ensure user: %w", err)
+	}
+	return nil
+}
+
 func dbUUID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
 }

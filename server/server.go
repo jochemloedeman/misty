@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -73,7 +74,7 @@ func New(monitorStore MonitorStore) *Server {
 
 func (s *Server) RequireUser(next http.Handler) http.Handler {
 	// TODO: replace with real authentication
-	const hardcodedUser = "550e8400-e29b-41d4-a716-446655440000"
+	const hardcodedUser = "00000000-0000-0000-0000-000000000001"
 	id := uuid.MustParse(hardcodedUser)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userIDKey, id)
@@ -155,6 +156,7 @@ func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		fmt.Println("Failed to decode request body:", err)
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -204,6 +206,10 @@ func (s *Server) SetMonitorStatus(activate bool) http.HandlerFunc {
 		}
 
 		updated, err := s.monitorStore.Update(r.Context(), uid, m)
+		if errors.Is(err, monitor.ErrNotFound) {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
