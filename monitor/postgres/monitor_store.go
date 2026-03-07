@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jochemloedeman/misty/monitor"
 	"github.com/jochemloedeman/misty/db/sqlc"
+	"github.com/jochemloedeman/misty/monitor"
 )
 
 func toDomainMonitor(row sqlc.Monitor) monitor.Monitor {
@@ -33,7 +33,19 @@ func NewMonitorStore(q *sqlc.Queries) *MonitorStore {
 	return &MonitorStore{queries: q}
 }
 
-func (s *MonitorStore) ListActive(ctx context.Context) ([]monitor.Monitor, error) {
+func (s *MonitorStore) List(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error) {
+	rows, err := s.queries.ListMonitors(ctx, dbUUID(userID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list monitors: %w", err)
+	}
+	monitors := make([]monitor.Monitor, len(rows))
+	for i, row := range rows {
+		monitors[i] = toDomainMonitor(row)
+	}
+	return monitors, nil
+}
+
+func (s *MonitorStore) ListAllActive(ctx context.Context) ([]monitor.Monitor, error) {
 	rows, err := s.queries.ListActiveMonitors(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
@@ -43,6 +55,14 @@ func (s *MonitorStore) ListActive(ctx context.Context) ([]monitor.Monitor, error
 		monitors[i] = toDomainMonitor(row)
 	}
 	return monitors, nil
+}
+
+func (s *MonitorStore) Get(ctx context.Context, monitorID uuid.UUID) (monitor.Monitor, error) {
+	row, err := s.queries.GetByID(ctx, dbUUID(monitorID))
+	if err != nil {
+		return monitor.Monitor{}, fmt.Errorf("failed to get monitor: %w", err)
+	}
+	return toDomainMonitor(row), nil
 }
 
 func (s *MonitorStore) Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {

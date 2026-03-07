@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jochemloedeman/misty/notifications"
 )
 
 type MonitorStore interface {
-	ListActive(ctx context.Context) ([]Monitor, error)
+	ListAllActive(ctx context.Context) ([]Monitor, error)
 	UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *Alert) (Monitor, error)
 }
 
@@ -48,22 +49,7 @@ type ForecastStore interface {
 }
 
 type NotificationOutbox interface {
-	Create(ctx context.Context, notif Notification) (Notification, error)
-}
-
-type Notification struct {
-	ID          uuid.UUID
-	RecipientID uuid.UUID
-	Message     string
-	SentAt      time.Time
-}
-
-func NewNotification(recipientID uuid.UUID, message string) Notification {
-	return Notification{
-		ID:          uuid.New(),
-		RecipientID: recipientID,
-		Message:     message,
-	}
+	Create(ctx context.Context, notif notifications.Notification) (notifications.Notification, error)
 }
 
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
@@ -89,7 +75,7 @@ type AtomicStores struct {
 }
 
 func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) error {
-	monitors, err := r.monitorStore.ListActive(ctx)
+	monitors, err := r.monitorStore.ListAllActive(ctx)
 	if err != nil {
 		return fmt.Errorf("list active monitors: %w", err)
 	}
@@ -103,12 +89,13 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) err
 }
 
 func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon ForecastHorizon) error {
+	now := time.Now()
 	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
 	if err != nil {
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	alertChange := monitor.ReconcileAlert(forecasts)
+	alertChange := monitor.ReconcileAlert(now, forecasts)
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, alertChange)
@@ -121,7 +108,7 @@ func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []F
 	}
 
 	if ac.NeedsNotification() {
-		notif := NewNotification(monitor.UserID, fogAlertMessage(monitor, ac))
+		notif := notifications.NewNotification(monitor.UserID, fogAlertMessage(monitor, ac))
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
@@ -139,7 +126,7 @@ func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []F
 func fogAlertMessage(m Monitor, ac AlertChange) string {
 	return fmt.Sprintf("Fog alert for %s from %s to %s",
 		m.Location.Name,
-		ac.Alert.Start.Format(time.Kitchen),
-		ac.Alert.End.Format(time.Kitchen),
+		ac.Alert.Start.Format("15:04"),
+		ac.Alert.End.Format("15:04"),
 	)
 }

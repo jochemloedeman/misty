@@ -27,6 +27,8 @@ SELECT
     *
 FROM
     monitors
+WHERE
+    user_id = sqlc.arg('user_id')
 ORDER BY
     id;
 
@@ -40,6 +42,14 @@ WHERE
 ORDER BY
     id;
 
+-- name: GetByID :one
+SELECT
+    *
+FROM
+    monitors
+WHERE
+    id = sqlc.arg('id');
+
 -- name: UpdateMonitorAlert :one
 UPDATE
     monitors
@@ -47,4 +57,5 @@ SET
     alert_start = sqlc.arg('alert_start'),
     alert_end = sqlc.arg('alert_end')
 WHERE
-    id = sqlc.arg('id') RETURNING *;
+    id = sqlc.arg('id')
+    AND user_id = sqlc.arg('user_id') RETURNING *;

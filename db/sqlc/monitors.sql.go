@@ -72,6 +72,31 @@ func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (M
 	return i, err
 }
 
+const getByID = `-- name: GetByID :one
+SELECT
+    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+FROM
+    monitors
+WHERE
+    id = $1
+`
+
+func (q *Queries) GetByID(ctx context.Context, id pgtype.UUID) (Monitor, error) {
+	row := q.db.QueryRow(ctx, getByID, id)
+	var i Monitor
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.IsActive,
+		&i.LocationName,
+		&i.Latitude,
+		&i.Longitude,
+		&i.AlertStart,
+		&i.AlertEnd,
+	)
+	return i, err
+}
+
 const listActiveMonitors = `-- name: ListActiveMonitors :many
 SELECT
     id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
@@ -117,12 +142,14 @@ SELECT
     id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 FROM
     monitors
+WHERE
+    user_id = $1
 ORDER BY
     id
 `
 
-func (q *Queries) ListMonitors(ctx context.Context) ([]Monitor, error) {
-	rows, err := q.db.Query(ctx, listMonitors)
+func (q *Queries) ListMonitors(ctx context.Context, userID pgtype.UUID) ([]Monitor, error) {
+	rows, err := q.db.Query(ctx, listMonitors, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,17 +184,24 @@ SET
     alert_start = $1,
     alert_end = $2
 WHERE
-    id = $3 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    id = $3
+    AND user_id = $4 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
 `
 
 type UpdateMonitorAlertParams struct {
 	AlertStart pgtype.Timestamptz
 	AlertEnd   pgtype.Timestamptz
 	ID         pgtype.UUID
+	UserID     pgtype.UUID
 }
 
 func (q *Queries) UpdateMonitorAlert(ctx context.Context, arg UpdateMonitorAlertParams) (Monitor, error) {
-	row := q.db.QueryRow(ctx, updateMonitorAlert, arg.AlertStart, arg.AlertEnd, arg.ID)
+	row := q.db.QueryRow(ctx, updateMonitorAlert,
+		arg.AlertStart,
+		arg.AlertEnd,
+		arg.ID,
+		arg.UserID,
+	)
 	var i Monitor
 	err := row.Scan(
 		&i.ID,

@@ -223,11 +223,76 @@ func TestReconcileAlert(t *testing.T) {
 				Alert: nil,
 			},
 		},
+		{
+			name: "no fog - existing alert expired",
+			monitor: Monitor{
+				ID:       defaultUUID,
+				UserID:   defaultUUID,
+				IsActive: true,
+				Location: defaultLocation,
+				ActiveAlert: &Alert{
+					Start: defaultTime.Add(-2 * time.Hour),
+					End:   defaultTime.Add(-1 * time.Hour),
+				},
+			},
+			forecasts: []Forecast{
+				{
+					Time:             defaultTime,
+					WeatherVariables: noFogVariables,
+				},
+				{
+					Time:             defaultTime.Add(1 * time.Hour),
+					WeatherVariables: noFogVariables,
+				},
+				{
+					Time:             defaultTime.Add(2 * time.Hour),
+					WeatherVariables: noFogVariables,
+				},
+			},
+			expected: AlertChange{
+				Type:  Revoked,
+				Alert: nil,
+			},
+		},
+		{
+			name: "fog - existing alert expired",
+			monitor: Monitor{
+				ID:       defaultUUID,
+				UserID:   defaultUUID,
+				IsActive: true,
+				Location: defaultLocation,
+				ActiveAlert: &Alert{
+					Start: defaultTime.Add(-2 * time.Hour),
+					End:   defaultTime.Add(-1 * time.Hour),
+				},
+			},
+			forecasts: []Forecast{
+				{
+					Time:             defaultTime,
+					WeatherVariables: fogVariables,
+				},
+				{
+					Time:             defaultTime.Add(1 * time.Hour),
+					WeatherVariables: fogVariables,
+				},
+				{
+					Time:             defaultTime.Add(2 * time.Hour),
+					WeatherVariables: noFogVariables,
+				},
+			},
+			expected: AlertChange{
+				Type: New,
+				Alert: &Alert{
+					Start: defaultTime,
+					End:   defaultTime.Add(1 * time.Hour),
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.monitor.ReconcileAlert(tc.forecasts)
+			got := tc.monitor.ReconcileAlert(defaultTime, tc.forecasts)
 			if diff := cmp.Diff(tc.expected, got); diff != "" {
 				t.Errorf("ReconcileAlert() mismatch (-want +got):\n%s", diff)
 			}

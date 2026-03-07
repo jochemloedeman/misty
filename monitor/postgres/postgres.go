@@ -7,8 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jochemloedeman/misty/monitor"
 	"github.com/jochemloedeman/misty/db/sqlc"
+	"github.com/jochemloedeman/misty/monitor"
+	np "github.com/jochemloedeman/misty/notifications/postgres"
 )
 
 func NewRunAtomically(pool *pgxpool.Pool) monitor.RunAtomically {
@@ -24,7 +25,7 @@ func NewRunAtomically(pool *pgxpool.Pool) monitor.RunAtomically {
 		s := monitor.AtomicStores{
 			MonitorStore:  NewMonitorStore(queries),
 			ForecastStore: NewForecastStore(queries),
-			Outbox:        NewNotificationOutbox(queries),
+			Outbox:        np.NewNotificationOutbox(queries),
 		}
 		if err := fn(s); err != nil {
 			return err

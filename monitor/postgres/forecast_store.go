@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jochemloedeman/misty/monitor"
 	"github.com/jochemloedeman/misty/db/sqlc"
+	"github.com/jochemloedeman/misty/monitor"
 )
 
 func toDomainForecast(row sqlc.Forecast) monitor.Forecast {
