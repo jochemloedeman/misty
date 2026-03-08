@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -70,16 +69,6 @@ func New(monitorStore MonitorStore) *API {
 	return &API{
 		monitorStore: monitorStore,
 	}
-}
-
-func (s *API) RequireUser(next http.Handler) http.Handler {
-	// TODO: replace with real authentication
-	const hardcodedUser = "00000000-0000-0000-0000-000000000001"
-	id := uuid.MustParse(hardcodedUser)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), userIDKey, id)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
 }
 
 func userID(ctx context.Context) uuid.UUID {
@@ -156,7 +145,7 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		fmt.Println("Failed to decode request body:", err)
+		slog.Debug("failed to decode request body", "error", err)
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}

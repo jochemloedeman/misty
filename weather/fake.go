@@ -2,34 +2,26 @@ package weather
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"time"
 
 	"github.com/jochemloedeman/misty/monitor"
 )
 
-func NewStatefulNow(nrOfMonitors int, increment time.Duration) func() time.Time {
-	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	called := 0
-	return func() time.Time {
-		if called%nrOfMonitors == 0 && called != 0 {
-			now = now.Add(increment)
-		}
-		called++
-		return now
-	}
+type Clock interface {
+	Now() time.Time
 }
 
 type FakeForecaster struct {
-	now                   func() time.Time
+	clock                 Clock
 	chanceOfFog           float64
 	chanceOfForecastIfFog float64
 }
 
-func NewFakeForecaster(nrOfMonitors int, increment time.Duration, chanceOfFog, chanceOfForecastIfFog float64) FakeForecaster {
+func NewFakeForecaster(clock Clock, chanceOfFog, chanceOfForecastIfFog float64) FakeForecaster {
 	return FakeForecaster{
-		now:                   NewStatefulNow(nrOfMonitors, increment),
+		clock:                 clock,
 		chanceOfFog:           chanceOfFog,
 		chanceOfForecastIfFog: chanceOfForecastIfFog,
 	}
@@ -61,11 +53,11 @@ func fogForecast(ts time.Time) monitor.Forecast {
 	}
 }
 
-func (f FakeForecaster) Forecast(ctx context.Context, location monitor.Location, horizon monitor.ForecastHorizon) ([]monitor.Forecast, error) {
+func (f FakeForecaster) Forecast(ctx context.Context, location monitor.Location, horizon monitor.TimeHorizon) ([]monitor.Forecast, error) {
 	forecasts := make([]monitor.Forecast, horizon.Steps)
 	fog := rand.Float64() < f.chanceOfFog
-	fmt.Printf("fog: %t\n", fog)
-	now := f.now()
+	slog.Debug("forecast generated", "fog", fog)
+	now := f.clock.Now()
 	if !fog {
 		for i := 0; i < horizon.Steps; i++ {
 			timeOffset := time.Duration(i) * horizon.Granularity
@@ -75,7 +67,7 @@ func (f FakeForecaster) Forecast(ctx context.Context, location monitor.Location,
 	}
 	for i := 0; i < horizon.Steps; i++ {
 		foggyForecast := rand.Float64() < f.chanceOfForecastIfFog
-		fmt.Printf("foggy forecast: %t\n", foggyForecast)
+		slog.Debug("forecast step", "foggy", foggyForecast)
 		timeOffset := time.Duration(i) * horizon.Granularity
 		if foggyForecast {
 			forecasts[i] = fogForecast(now.Add(timeOffset))

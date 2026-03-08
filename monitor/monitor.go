@@ -52,12 +52,18 @@ func (c AlertChange) NeedsNotification() bool {
 	}
 }
 
+type TimeHorizon struct {
+	Granularity time.Duration
+	Steps       int
+}
+
 type Monitor struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	IsActive    bool
-	Location    Location
-	ActiveAlert *Alert
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	IsActive     bool
+	Location     Location
+	AlertHorizon TimeHorizon
+	ActiveAlert  *Alert
 }
 
 func NewMonitor(userID uuid.UUID, location Location) Monitor {

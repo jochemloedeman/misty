@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,18 +23,17 @@ func (t *Transient) Unwrap() error {
 	return t.Err
 }
 
+type Clock interface {
+	Now() time.Time
+}
+
 type MonitorStore interface {
 	ListAllActive(ctx context.Context) ([]Monitor, error)
 	UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *Alert) (Monitor, error)
 }
 
 type Forecaster interface {
-	Forecast(ctx context.Context, location Location, horizon ForecastHorizon) ([]Forecast, error)
-}
-
-type ForecastHorizon struct {
-	Granularity time.Duration
-	Steps       int
+	Forecast(ctx context.Context, location Location, horizon TimeHorizon) ([]Forecast, error)
 }
 
 type WeatherVariables struct {
@@ -68,16 +68,18 @@ type NotificationOutbox interface {
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
 
 type Refresher struct {
+	clock        Clock
 	forecaster   Forecaster
 	monitorStore MonitorStore
 	runAtom      RunAtomically
 }
 
-func NewRefresher(forecaster Forecaster, monitorStore MonitorStore, runAtom RunAtomically) *Refresher {
+func NewRefresher(forecaster Forecaster, monitorStore MonitorStore, runAtom RunAtomically, clock Clock) *Refresher {
 	return &Refresher{
 		forecaster:   forecaster,
 		monitorStore: monitorStore,
 		runAtom:      runAtom,
+		clock:        clock,
 	}
 }
 
@@ -87,7 +89,7 @@ type AtomicStores struct {
 	Outbox        NotificationOutbox
 }
 
-func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) error {
+func (r *Refresher) RefreshAll(ctx context.Context, horizon TimeHorizon) error {
 	monitors, err := r.monitorStore.ListAllActive(ctx)
 	if err != nil {
 		return fmt.Errorf("list active monitors: %w", err)
@@ -99,7 +101,7 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) err
 			continue
 		}
 		if _, ok := errors.AsType[*Transient](err); ok {
-			fmt.Printf("transient error refreshing monitor %s: %v\n", monitors[i].ID, err)
+			slog.Warn("transient error refreshing monitor", "monitor_id", monitors[i].ID, "error", err)
 			continue
 		}
 		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
@@ -107,8 +109,8 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) err
 	return nil
 }
 
-func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon ForecastHorizon) error {
-	now := time.Now()
+func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon TimeHorizon) error {
+	now := r.clock.Now()
 	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
 
 	if err != nil {
