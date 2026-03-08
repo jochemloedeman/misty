@@ -1,4 +1,4 @@
-package server
+package api
 
 import (
 	"context"
@@ -62,17 +62,17 @@ func toMonitorResponse(m monitor.Monitor) MonitorResponse {
 	return res
 }
 
-type Server struct {
+type API struct {
 	monitorStore MonitorStore
 }
 
-func New(monitorStore MonitorStore) *Server {
-	return &Server{
+func New(monitorStore MonitorStore) *API {
+	return &API{
 		monitorStore: monitorStore,
 	}
 }
 
-func (s *Server) RequireUser(next http.Handler) http.Handler {
+func (s *API) RequireUser(next http.Handler) http.Handler {
 	// TODO: replace with real authentication
 	const hardcodedUser = "00000000-0000-0000-0000-000000000001"
 	id := uuid.MustParse(hardcodedUser)
@@ -107,7 +107,7 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	}
 }
 
-func (s *Server) ListMonitors(w http.ResponseWriter, r *http.Request) {
+func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
 
 	monitors, err := s.monitorStore.List(r.Context(), uid)
@@ -122,7 +122,7 @@ func (s *Server) ListMonitors(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-func (s *Server) GetMonitor(w http.ResponseWriter, r *http.Request) {
+func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
 
 	monitorID := r.PathValue("id")
@@ -146,7 +146,7 @@ func (s *Server) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
+func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
 
 	type params struct {
@@ -179,7 +179,7 @@ func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, res)
 }
 
-func (s *Server) SetMonitorStatus(activate bool) http.HandlerFunc {
+func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid := userID(r.Context())
 
@@ -219,7 +219,7 @@ func (s *Server) SetMonitorStatus(activate bool) http.HandlerFunc {
 	}
 }
 
-func (s *Server) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
+func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
 
 	mid, err := uuid.Parse(r.PathValue("id"))

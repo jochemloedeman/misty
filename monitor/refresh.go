@@ -2,12 +2,25 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/notifications"
 )
+
+type Transient struct {
+	Err error
+}
+
+func (t *Transient) Error() string {
+	return t.Err.Error()
+}
+
+func (t *Transient) Unwrap() error {
+	return t.Err
+}
 
 type MonitorStore interface {
 	ListAllActive(ctx context.Context) ([]Monitor, error)
@@ -81,9 +94,15 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) err
 	}
 
 	for i := range monitors {
-		if err := r.refresh(ctx, monitors[i], horizon); err != nil {
-			return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
+		err := r.refresh(ctx, monitors[i], horizon)
+		if err == nil {
+			continue
 		}
+		if _, ok := errors.AsType[*Transient](err); ok {
+			fmt.Printf("transient error refreshing monitor %s: %v\n", monitors[i].ID, err)
+			continue
+		}
+		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
 	}
 	return nil
 }
@@ -91,6 +110,7 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon ForecastHorizon) err
 func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon ForecastHorizon) error {
 	now := time.Now()
 	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
+
 	if err != nil {
 		return fmt.Errorf("forecast: %w", err)
 	}
