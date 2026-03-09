@@ -20,9 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func runServer(ctx context.Context, newStore func(uuid.UUID) api.MonitorStore, port string) error {
-	routes := api.New(newStore)
-
+func runServer(ctx context.Context, routes *api.API, port string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /monitors", routes.ListMonitors)
 	mux.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
@@ -105,11 +103,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	routes := api.New(func(uid uuid.UUID) api.MonitorStore {
+		return postgres.NewScopedMonitorStore(uid, queries)
+	})
+
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		return runServer(ctx, func(uid uuid.UUID) api.MonitorStore {
-			return postgres.NewScopedMonitorStore(uid, queries)
-		}, cfg.Port)
+		return runServer(ctx, routes, cfg.Port)
 	})
 	group.Go(func() error {
 		return runReconciliation(
