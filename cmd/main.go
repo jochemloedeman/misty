@@ -36,9 +36,11 @@ func runServer(ctx context.Context, routes *api.API, port string) error {
 
 	go func() {
 		<-ctx.Done()
+		slog.Info("http server shutting down")
 		_ = srv.Shutdown(context.Background())
 	}()
 
+	slog.Info("http server listening", "addr", srv.Addr)
 	err := srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		return err
@@ -59,10 +61,12 @@ func runReconciliation(ctx context.Context, refresher *monitor.Refresher, interv
 	for {
 		select {
 		case <-ticker.C:
+			slog.Debug("reconciliation tick")
 			err := refresher.RefreshAll(ctx, horizon)
 			if err != nil {
 				return err
 			}
+			slog.Debug("reconciliation complete")
 		case <-ctx.Done():
 			return nil
 		}
@@ -79,6 +83,12 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: cfg.LogLevel,
 	})))
+	slog.Info("starting misty",
+		"port", cfg.Port,
+		"log_level", cfg.LogLevel,
+		"reconcile_interval", cfg.ReconcileInterval,
+		"forecast_horizon", cfg.ForecastHorizon,
+	)
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
@@ -87,8 +97,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	slog.Info("database connected")
 
-	clock := clock.NewFastClock(60)
+	clock := clock.NewFastClock(1. / 60)
 
 	queries := sqlc.New(pool)
 	refresher := monitor.NewRefresher(

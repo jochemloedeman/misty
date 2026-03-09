@@ -1,6 +1,9 @@
 package notifications
 
-import "context"
+import (
+	"context"
+	"log/slog"
+)
 
 type outbox interface {
 	ListUnsent(context.Context) ([]Notification, error)
@@ -26,10 +29,13 @@ func (n *Notifier) Notify(ctx context.Context) error {
 		return err
 	}
 
+	slog.Debug("delivering notifications", "count", len(notifications))
+
 	for _, notification := range notifications {
 		if err := n.deliver(ctx, notification); err != nil {
 			return err
 		}
+		slog.Info("notification delivered", "notification_id", notification.ID, "recipient_id", notification.RecipientID)
 	}
 
 	return nil

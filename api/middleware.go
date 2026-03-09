@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -20,6 +21,7 @@ func RequireUser(next http.Handler) http.Handler {
 
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		writer := &StatusResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}
 		next.ServeHTTP(writer, r)
 		slog.Info(
@@ -27,6 +29,7 @@ func RequestLogger(next http.Handler) http.Handler {
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", writer.StatusCode,
+			"duration", time.Since(start),
 		)
 	})
 }

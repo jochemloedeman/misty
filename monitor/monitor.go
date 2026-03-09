@@ -43,6 +43,19 @@ func (c AlertChange) NeedsSave() bool {
 	}
 }
 
+func (t AlertChangeType) String() string {
+	switch t {
+	case New:
+		return "new"
+	case Changed:
+		return "changed"
+	case Revoked:
+		return "revoked"
+	default:
+		return "unchanged"
+	}
+}
+
 func (c AlertChange) NeedsNotification() bool {
 	switch c.Type {
 	case New:

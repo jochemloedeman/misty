@@ -84,6 +84,8 @@ type ErrorResponse struct {
 func writeError(w http.ResponseWriter, status int, err error) {
 	if status >= 500 {
 		slog.Error("Server error", "status", status, "error", err)
+	} else if status >= 400 {
+		slog.Debug("client error", "status", status, "error", err)
 	}
 	writeJSON(w, status, ErrorResponse{Error: http.StatusText(status)})
 }
@@ -165,6 +167,8 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("monitor created", "monitor_id", created.ID, "user_id", uid, "location", created.Location.Name)
+
 	res := toMonitorResponse(created)
 	writeJSON(w, http.StatusCreated, res)
 }
@@ -205,6 +209,8 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 
+		slog.Info("monitor status changed", "monitor_id", updated.ID, "is_active", updated.IsActive)
+
 		writeJSON(w, http.StatusOK, toMonitorResponse(updated))
 	}
 }
@@ -218,6 +224,8 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	uid := userID(r.Context())
+
 	err = store.Delete(r.Context(), mid)
 	if errors.Is(err, monitor.ErrNotFound) {
 		writeError(w, http.StatusNotFound, err)
@@ -228,5 +236,6 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("monitor deleted", "monitor_id", mid, "user_id", uid)
 	w.WriteHeader(http.StatusNoContent)
 }

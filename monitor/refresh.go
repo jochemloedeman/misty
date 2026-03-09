@@ -95,6 +95,8 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon TimeHorizon) error {
 		return fmt.Errorf("list active monitors: %w", err)
 	}
 
+	slog.Info("refresh started", "monitor_count", len(monitors))
+
 	for i := range monitors {
 		err := r.refresh(ctx, monitors[i], horizon)
 		if err == nil {
@@ -106,6 +108,8 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon TimeHorizon) error {
 		}
 		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
 	}
+
+	slog.Info("refresh completed", "monitor_count", len(monitors))
 	return nil
 }
 
@@ -119,6 +123,12 @@ func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon TimeHo
 
 	monitor, alertChange := monitor.ReconcileAlert(now, forecasts)
 
+	slog.Info("alert reconciled",
+		"monitor_id", monitor.ID,
+		"location", monitor.Location.Name,
+		"change_type", alertChange.Type,
+	)
+
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, alertChange)
 	})
@@ -130,16 +140,19 @@ func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []F
 	}
 
 	if ac.NeedsNotification() {
-		notif := notifications.NewNotification(monitor.UserID, fogAlertMessage(monitor, ac))
+		msg := fogAlertMessage(monitor, ac)
+		notif := notifications.NewNotification(monitor.UserID, msg)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
+		slog.Info("notification queued", "monitor_id", monitor.ID, "user_id", monitor.UserID, "message", msg)
 	}
 
 	if ac.NeedsSave() {
 		if _, err := s.MonitorStore.Update(ctx, monitor); err != nil {
 			return fmt.Errorf("update alert: %w", err)
 		}
+		slog.Debug("monitor updated", "monitor_id", monitor.ID)
 	}
 
 	return nil
