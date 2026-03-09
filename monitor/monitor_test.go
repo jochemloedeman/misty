@@ -34,10 +34,11 @@ var fogVariables = WeatherVariables{
 
 func TestReconcileAlert(t *testing.T) {
 	testCases := []struct {
-		name      string
-		monitor   Monitor
-		forecasts []Forecast
-		expected  AlertChange
+		name          string
+		monitor       Monitor
+		forecasts     []Forecast
+		expected      AlertChange
+		expectedAlert *Alert
 	}{
 		{
 			name: "clear - no current alert",
@@ -65,6 +66,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type:  Unchanged,
 				Alert: nil,
 			},
+			expectedAlert: nil,
 		},
 		{
 			name: "clear - existing alert",
@@ -96,6 +98,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type:  Revoked,
 				Alert: nil,
 			},
+			expectedAlert: nil,
 		},
 		{
 			name: "fog - no current alert",
@@ -125,6 +128,10 @@ func TestReconcileAlert(t *testing.T) {
 					Start: defaultTime,
 					End:   defaultTime.Add(1 * time.Hour),
 				},
+			},
+			expectedAlert: &Alert{
+				Start: defaultTime,
+				End:   defaultTime.Add(1 * time.Hour),
 			},
 		},
 		{
@@ -157,6 +164,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type:  Unchanged,
 				Alert: &Alert{Start: defaultTime, End: defaultTime.Add(1 * time.Hour)},
 			},
+			expectedAlert: &Alert{Start: defaultTime, End: defaultTime.Add(1 * time.Hour)},
 		},
 		{
 			name: "fog - existing alert - changed",
@@ -191,6 +199,10 @@ func TestReconcileAlert(t *testing.T) {
 					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
+			expectedAlert: &Alert{
+				Start: defaultTime,
+				End:   defaultTime.Add(2 * time.Hour),
+			},
 		},
 		{
 			name: "fog - existing alert - revoked",
@@ -222,6 +234,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type:  Revoked,
 				Alert: nil,
 			},
+			expectedAlert: nil,
 		},
 		{
 			name: "no fog - existing alert expired",
@@ -253,6 +266,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type:  Revoked,
 				Alert: nil,
 			},
+			expectedAlert: nil,
 		},
 		{
 			name: "fog - existing alert expired",
@@ -287,14 +301,21 @@ func TestReconcileAlert(t *testing.T) {
 					End:   defaultTime.Add(1 * time.Hour),
 				},
 			},
+			expectedAlert: &Alert{
+				Start: defaultTime,
+				End:   defaultTime.Add(1 * time.Hour),
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.monitor.ReconcileAlert(defaultTime, tc.forecasts)
-			if diff := cmp.Diff(tc.expected, got); diff != "" {
-				t.Errorf("ReconcileAlert() mismatch (-want +got):\n%s", diff)
+			gotMonitor, gotChange := tc.monitor.ReconcileAlert(defaultTime, tc.forecasts)
+			if diff := cmp.Diff(tc.expected, gotChange); diff != "" {
+				t.Errorf("ReconcileAlert() AlertChange mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedAlert, gotMonitor.ActiveAlert); diff != "" {
+				t.Errorf("ReconcileAlert() Monitor.ActiveAlert mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

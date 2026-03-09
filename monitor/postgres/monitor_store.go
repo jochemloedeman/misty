@@ -35,22 +35,8 @@ func NewMonitorStore(q *sqlc.Queries) *MonitorStore {
 	return &MonitorStore{queries: q}
 }
 
-func (s *MonitorStore) List(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error) {
-	rows, err := s.queries.ListMonitors(ctx, dbUUID(userID))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list monitors: %w", err)
-	}
-	monitors := make([]monitor.Monitor, len(rows))
-	for i, row := range rows {
-		monitors[i] = toDomainMonitor(row)
-	}
-	return monitors, nil
-}
-
 func (s *MonitorStore) ListAllActive(ctx context.Context) ([]monitor.Monitor, error) {
 	rows, err := s.queries.ListActiveMonitors(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
 	}
@@ -61,10 +47,50 @@ func (s *MonitorStore) ListAllActive(ctx context.Context) ([]monitor.Monitor, er
 	return monitors, nil
 }
 
-func (s *MonitorStore) Get(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) (monitor.Monitor, error) {
+func (s *MonitorStore) Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
+	params := sqlc.UpdateMonitorByIDParams{
+		ID:       dbUUID(m.ID),
+		IsActive: m.IsActive,
+	}
+	if m.ActiveAlert != nil {
+		params.AlertStart = dbTime(m.ActiveAlert.Start)
+		params.AlertEnd = dbTime(m.ActiveAlert.End)
+	}
+	row, err := s.queries.UpdateMonitorByID(ctx, params)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return monitor.Monitor{}, monitor.ErrNotFound
+	}
+	if err != nil {
+		return monitor.Monitor{}, fmt.Errorf("update monitor: %w", err)
+	}
+	return toDomainMonitor(row), nil
+}
+
+type ScopedMonitorStore struct {
+	userID  uuid.UUID
+	queries *sqlc.Queries
+}
+
+func NewScopedMonitorStore(userID uuid.UUID, q *sqlc.Queries) *ScopedMonitorStore {
+	return &ScopedMonitorStore{userID: userID, queries: q}
+}
+
+func (s *ScopedMonitorStore) List(ctx context.Context) ([]monitor.Monitor, error) {
+	rows, err := s.queries.ListMonitors(ctx, dbUUID(s.userID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list monitors: %w", err)
+	}
+	monitors := make([]monitor.Monitor, len(rows))
+	for i, row := range rows {
+		monitors[i] = toDomainMonitor(row)
+	}
+	return monitors, nil
+}
+
+func (s *ScopedMonitorStore) Get(ctx context.Context, monitorID uuid.UUID) (monitor.Monitor, error) {
 	args := sqlc.GetByMonitorIDParams{
 		ID:     dbUUID(monitorID),
-		UserID: dbUUID(userID),
+		UserID: dbUUID(s.userID),
 	}
 	row, err := s.queries.GetByMonitorID(ctx, args)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -76,7 +102,7 @@ func (s *MonitorStore) Get(ctx context.Context, userID uuid.UUID, monitorID uuid
 	return toDomainMonitor(row), nil
 }
 
-func (s *MonitorStore) Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
+func (s *ScopedMonitorStore) Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
 	params := sqlc.CreateMonitorParams{
 		ID:           dbUUID(m.ID),
 		UserID:       dbUUID(m.UserID),
@@ -93,27 +119,13 @@ func (s *MonitorStore) Create(ctx context.Context, m monitor.Monitor) (monitor.M
 	if err != nil {
 		return monitor.Monitor{}, fmt.Errorf("failed to create monitor: %w", err)
 	}
-
 	return toDomainMonitor(row), nil
 }
 
-func (s *MonitorStore) UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *monitor.Alert) (monitor.Monitor, error) {
-	params := sqlc.UpdateMonitorAlertParams{ID: dbUUID(monitorID)}
-	if alert != nil {
-		params.AlertStart = dbTime(alert.Start)
-		params.AlertEnd = dbTime(alert.End)
-	}
-	row, err := s.queries.UpdateMonitorAlert(ctx, params)
-	if err != nil {
-		return monitor.Monitor{}, fmt.Errorf("failed to update monitor: %w", err)
-	}
-	return toDomainMonitor(row), nil
-}
-
-func (s *MonitorStore) Update(ctx context.Context, userID uuid.UUID, m monitor.Monitor) (monitor.Monitor, error) {
+func (s *ScopedMonitorStore) Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error) {
 	params := sqlc.UpdateMonitorParams{
 		ID:       dbUUID(m.ID),
-		UserID:   dbUUID(userID),
+		UserID:   dbUUID(s.userID),
 		IsActive: m.IsActive,
 	}
 	if m.ActiveAlert != nil {
@@ -130,10 +142,10 @@ func (s *MonitorStore) Update(ctx context.Context, userID uuid.UUID, m monitor.M
 	return toDomainMonitor(row), nil
 }
 
-func (s *MonitorStore) Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error {
+func (s *ScopedMonitorStore) Delete(ctx context.Context, monitorID uuid.UUID) error {
 	result, err := s.queries.DeleteMonitor(ctx, sqlc.DeleteMonitorParams{
 		ID:     dbUUID(monitorID),
-		UserID: dbUUID(userID),
+		UserID: dbUUID(s.userID),
 	})
 	if err != nil {
 		return fmt.Errorf("delete monitor: %w", err)

@@ -17,11 +17,11 @@ type contextKey string
 const userIDKey contextKey = "userID"
 
 type MonitorStore interface {
-	List(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error)
-	Get(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) (monitor.Monitor, error)
+	List(ctx context.Context) ([]monitor.Monitor, error)
+	Get(ctx context.Context, monitorID uuid.UUID) (monitor.Monitor, error)
 	Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
-	Update(ctx context.Context, userID uuid.UUID, m monitor.Monitor) (monitor.Monitor, error)
-	Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error
+	Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
+	Delete(ctx context.Context, monitorID uuid.UUID) error
 }
 
 type LocationResponse struct {
@@ -62,12 +62,12 @@ func toMonitorResponse(m monitor.Monitor) MonitorResponse {
 }
 
 type API struct {
-	monitorStore MonitorStore
+	newStore func(userID uuid.UUID) MonitorStore
 }
 
-func New(monitorStore MonitorStore) *API {
+func New(newStore func(userID uuid.UUID) MonitorStore) *API {
 	return &API{
-		monitorStore: monitorStore,
+		newStore: newStore,
 	}
 }
 
@@ -97,9 +97,9 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
-	uid := userID(r.Context())
+	store := s.newStore(userID(r.Context()))
 
-	monitors, err := s.monitorStore.List(r.Context(), uid)
+	monitors, err := store.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -112,7 +112,7 @@ func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
-	uid := userID(r.Context())
+	store := s.newStore(userID(r.Context()))
 
 	monitorID := r.PathValue("id")
 	mid, err := uuid.Parse(monitorID)
@@ -121,7 +121,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := s.monitorStore.Get(r.Context(), uid, mid)
+	m, err := store.Get(r.Context(), mid)
 	if errors.Is(err, monitor.ErrNotFound) {
 		writeError(w, http.StatusNotFound, err)
 		return
@@ -137,6 +137,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 
 func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
+	store := s.newStore(uid)
 
 	type params struct {
 		LocationName string  `json:"location_name"`
@@ -158,7 +159,7 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 			Lon:  p.Lon,
 		},
 	)
-	created, err := s.monitorStore.Create(r.Context(), m)
+	created, err := store.Create(r.Context(), m)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -170,7 +171,7 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 
 func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		uid := userID(r.Context())
+		store := s.newStore(userID(r.Context()))
 
 		mid, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -178,7 +179,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 
-		m, err := s.monitorStore.Get(r.Context(), uid, mid)
+		m, err := store.Get(r.Context(), mid)
 		if errors.Is(err, monitor.ErrNotFound) {
 			writeError(w, http.StatusNotFound, err)
 			return
@@ -194,7 +195,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			m = m.Deactivate()
 		}
 
-		updated, err := s.monitorStore.Update(r.Context(), uid, m)
+		updated, err := store.Update(r.Context(), m)
 		if errors.Is(err, monitor.ErrNotFound) {
 			writeError(w, http.StatusNotFound, err)
 			return
@@ -209,7 +210,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 }
 
 func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
-	uid := userID(r.Context())
+	store := s.newStore(userID(r.Context()))
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -217,7 +218,7 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.monitorStore.Delete(r.Context(), uid, mid)
+	err = store.Delete(r.Context(), mid)
 	if errors.Is(err, monitor.ErrNotFound) {
 		writeError(w, http.StatusNotFound, err)
 		return

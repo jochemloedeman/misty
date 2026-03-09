@@ -29,7 +29,7 @@ type Clock interface {
 
 type MonitorStore interface {
 	ListAllActive(ctx context.Context) ([]Monitor, error)
-	UpdateAlert(ctx context.Context, monitorID uuid.UUID, alert *Alert) (Monitor, error)
+	Update(ctx context.Context, m Monitor) (Monitor, error)
 }
 
 type Forecaster interface {
@@ -117,7 +117,7 @@ func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon TimeHo
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	alertChange := monitor.ReconcileAlert(now, forecasts)
+	monitor, alertChange := monitor.ReconcileAlert(now, forecasts)
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, alertChange)
@@ -137,7 +137,7 @@ func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []F
 	}
 
 	if ac.NeedsSave() {
-		if _, err := s.MonitorStore.UpdateAlert(ctx, monitor.ID, ac.Alert); err != nil {
+		if _, err := s.MonitorStore.Update(ctx, monitor); err != nil {
 			return fmt.Errorf("update alert: %w", err)
 		}
 	}

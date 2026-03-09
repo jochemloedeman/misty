@@ -97,24 +97,26 @@ func detectFog(forecasts []Forecast) *Alert {
 	return &Alert{Start: start, End: end}
 }
 
-func (m Monitor) ReconcileAlert(now time.Time, forecasts []Forecast) AlertChange {
-
+func (m Monitor) ReconcileAlert(now time.Time, forecasts []Forecast) (Monitor, AlertChange) {
 	newAlert := detectFog(forecasts)
 
 	switch {
 	case newAlert == nil && m.ActiveAlert == nil:
-		return AlertChange{}
+		return m, AlertChange{}
 	case newAlert == nil && m.ActiveAlert != nil:
-		return AlertChange{Type: Revoked}
+		m.ActiveAlert = nil
+		return m, AlertChange{Type: Revoked}
 	case newAlert != nil && m.ActiveAlert == nil:
-		return AlertChange{Type: New, Alert: newAlert}
-
+		m.ActiveAlert = newAlert
+		return m, AlertChange{Type: New, Alert: newAlert}
 	case m.ActiveAlert.End.Before(now):
-		return AlertChange{Type: New, Alert: newAlert}
+		m.ActiveAlert = newAlert
+		return m, AlertChange{Type: New, Alert: newAlert}
 	case newAlert.Start.Equal(m.ActiveAlert.Start) && newAlert.End.Equal(m.ActiveAlert.End):
-		return AlertChange{Alert: m.ActiveAlert}
+		return m, AlertChange{Alert: m.ActiveAlert}
 	default:
-		return AlertChange{Type: Changed, Alert: newAlert}
+		m.ActiveAlert = newAlert
+		return m, AlertChange{Type: Changed, Alert: newAlert}
 	}
 }
 

@@ -20,13 +20,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type Clock interface {
-	Now() time.Time
-	NewTicker(d time.Duration) *time.Ticker
-}
-
-func runServer(ctx context.Context, store api.MonitorStore, port string) error {
-	routes := api.New(store)
+func runServer(ctx context.Context, newStore func(uuid.UUID) api.MonitorStore, port string) error {
+	routes := api.New(newStore)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /monitors", routes.ListMonitors)
@@ -59,7 +54,7 @@ func seedDevUser(ctx context.Context, q *sqlc.Queries) error {
 	return userStore.Ensure(ctx, devUser)
 }
 
-func runReconciliation(ctx context.Context, refresher *monitor.Refresher, interval time.Duration, horizon monitor.TimeHorizon, clock Clock) error {
+func runReconciliation(ctx context.Context, refresher *monitor.Refresher, interval time.Duration, horizon monitor.TimeHorizon, clock clock.FastClock) error {
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -98,10 +93,9 @@ func main() {
 	clock := clock.NewFastClock(60)
 
 	queries := sqlc.New(pool)
-	monitorStore := postgres.NewMonitorStore(queries)
 	refresher := monitor.NewRefresher(
 		weather.NewFakeForecaster(clock, 0.9, 0.9),
-		monitorStore,
+		postgres.NewMonitorStore(queries),
 		postgres.NewRunAtomically(pool),
 		clock,
 	)
@@ -113,7 +107,9 @@ func main() {
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		return runServer(ctx, monitorStore, cfg.Port)
+		return runServer(ctx, func(uid uuid.UUID) api.MonitorStore {
+			return postgres.NewScopedMonitorStore(uid, queries)
+		}, cfg.Port)
 	})
 	group.Go(func() error {
 		return runReconciliation(
