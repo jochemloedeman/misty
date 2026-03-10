@@ -13,9 +13,8 @@ import (
 	"github.com/jochemloedeman/misty/clock"
 	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/monitor"
-	"github.com/jochemloedeman/misty/monitor/postgres"
+	"github.com/jochemloedeman/misty/notifications"
 	"github.com/jochemloedeman/misty/users"
-	userdb "github.com/jochemloedeman/misty/users/postgres"
 	"github.com/jochemloedeman/misty/weather"
 	"golang.org/x/sync/errgroup"
 )
@@ -50,11 +49,18 @@ func runServer(ctx context.Context, routes *api.API, port string) error {
 
 func seedDevUser(ctx context.Context, q *sqlc.Queries) error {
 	devUser := users.User{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001")}
-	userStore := userdb.NewUserStore(q)
+	userStore := users.NewUserStore(q)
 	return userStore.Ensure(ctx, devUser)
 }
 
-func runReconciliation(ctx context.Context, refresher *monitor.Refresher, interval time.Duration, horizon monitor.TimeHorizon, clock clock.FastClock) error {
+func runReconciliation(
+	ctx context.Context,
+	refresher *monitor.Refresher,
+	notifier *notifications.Notifier,
+	interval time.Duration,
+	horizon monitor.TimeHorizon,
+	clock clock.FastClock,
+) error {
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -63,6 +69,10 @@ func runReconciliation(ctx context.Context, refresher *monitor.Refresher, interv
 		case <-ticker.C:
 			slog.Debug("reconciliation tick")
 			err := refresher.RefreshAll(ctx, horizon)
+			if err != nil {
+				return err
+			}
+			err = notifier.Notify(ctx)
 			if err != nil {
 				return err
 			}
@@ -99,13 +109,13 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
-	clock := clock.NewFastClock(1. / 60)
+	clock := clock.NewFastClock(1. / 3600)
 
 	queries := sqlc.New(pool)
 	refresher := monitor.NewRefresher(
-		weather.NewFakeForecaster(clock, 0.9, 0.9),
-		postgres.NewMonitorStore(queries),
-		postgres.NewRunAtomically(pool),
+		weather.NewFakeForecaster(clock, 0.9, 1.),
+		monitor.NewMonitorStore(queries),
+		monitor.NewRunAtomically(pool),
 		clock,
 	)
 
@@ -115,8 +125,16 @@ func main() {
 	}
 
 	routes := api.New(func(uid uuid.UUID) api.MonitorStore {
-		return postgres.NewScopedMonitorStore(uid, queries)
+		return monitor.NewScopedMonitorStore(uid, queries)
 	})
+
+	notifier := notifications.NewNotifier(
+		notifications.NewOutbox(queries),
+		func(ctx context.Context, notif notifications.Notification) error {
+			slog.Info("delivering notification", "notification_id", notif.ID, "recipient_id", notif.RecipientID)
+			return nil
+		},
+	)
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
@@ -126,6 +144,7 @@ func main() {
 		return runReconciliation(
 			ctx,
 			refresher,
+			notifier,
 			cfg.ReconcileInterval,
 			cfg.ForecastHorizon,
 			clock,
