@@ -127,6 +127,9 @@ func (m Monitor) ReconcileAlert(now time.Time, forecasts []Forecast) (Monitor, A
 		return m, AlertChange{Type: New, Alert: newAlert}
 	case newAlert.Start.Equal(m.ActiveAlert.Start) && newAlert.End.Equal(m.ActiveAlert.End):
 		return m, AlertChange{Alert: m.ActiveAlert}
+	case newAlert.Start.After(m.ActiveAlert.End) || newAlert.End.Before(m.ActiveAlert.Start):
+		m.ActiveAlert = newAlert
+		return m, AlertChange{Type: New, Alert: newAlert}
 	default:
 		m.ActiveAlert = newAlert
 		return m, AlertChange{Type: Changed, Alert: newAlert}
