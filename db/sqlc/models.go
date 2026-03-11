@@ -37,5 +37,7 @@ type Notification struct {
 }
 
 type User struct {
-	ID pgtype.UUID
+	ID           pgtype.UUID
+	PushToken    pgtype.Text
+	RefreshToken string
 }

@@ -22,6 +22,9 @@ func dbTime(ts time.Time) pgtype.Timestamptz {
 }
 
 func dbUUID(id uuid.UUID) pgtype.UUID {
+	if id == uuid.Nil {
+		return pgtype.UUID{}
+	}
 	return pgtype.UUID{Bytes: id, Valid: true}
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/monitor"
+	"github.com/jochemloedeman/misty/users"
 )
 
 type contextKey string
@@ -22,6 +23,10 @@ type MonitorStore interface {
 	Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	Delete(ctx context.Context, monitorID uuid.UUID) error
+}
+
+type UserStore interface {
+	Create(ctx context.Context, u users.User) (users.User, error)
 }
 
 type LocationResponse struct {
@@ -62,12 +67,14 @@ func toMonitorResponse(m monitor.Monitor) MonitorResponse {
 }
 
 type API struct {
-	newStore func(userID uuid.UUID) MonitorStore
+	newMonitorStore func(userID uuid.UUID) MonitorStore
+	userStore       UserStore
 }
 
-func New(newStore func(userID uuid.UUID) MonitorStore) *API {
+func New(userStore UserStore, newMonitorStore func(userID uuid.UUID) MonitorStore) *API {
 	return &API{
-		newStore: newStore,
+		userStore:       userStore,
+		newMonitorStore: newMonitorStore,
 	}
 }
 
@@ -99,7 +106,7 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
-	store := s.newStore(userID(r.Context()))
+	store := s.newMonitorStore(userID(r.Context()))
 
 	monitors, err := store.List(r.Context())
 	if err != nil {
@@ -114,7 +121,7 @@ func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
-	store := s.newStore(userID(r.Context()))
+	store := s.newMonitorStore(userID(r.Context()))
 
 	monitorID := r.PathValue("id")
 	mid, err := uuid.Parse(monitorID)
@@ -139,7 +146,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 
 func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
-	store := s.newStore(uid)
+	store := s.newMonitorStore(uid)
 
 	type params struct {
 		LocationName string  `json:"location_name"`
@@ -175,7 +182,7 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 
 func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		store := s.newStore(userID(r.Context()))
+		store := s.newMonitorStore(userID(r.Context()))
 
 		mid, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -216,7 +223,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 }
 
 func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
-	store := s.newStore(userID(r.Context()))
+	store := s.newMonitorStore(userID(r.Context()))
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -238,4 +245,45 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("monitor deleted", "monitor_id", mid, "user_id", uid)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *API) Register(w http.ResponseWriter, r *http.Request) {
+	type params struct {
+		PushToken string `json:"push_token"`
+	}
+	var p params
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		slog.Debug("failed to decode request body", "error", err)
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	u, plainRefreshToken := users.NewUser(p.PushToken)
+	created, err := s.userStore.Create(r.Context(), u)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	slog.Info("user registered", "user_id", created.ID)
+
+	type response struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	writeJSON(w, http.StatusCreated, response{
+		RefreshToken: plainRefreshToken,
+	})
+
+}
+
+func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
+	type params struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	var p params
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		slog.Debug("failed to decode request body", "error", err)
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
 }

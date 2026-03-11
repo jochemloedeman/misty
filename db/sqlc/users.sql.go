@@ -13,25 +13,54 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO
-    users (id)
+    users (
+        id,
+        push_token,
+        refresh_token
+    )
 VALUES
-    ($1) RETURNING id
+    (
+        $1,
+        $2,
+        $3
+    ) RETURNING id, push_token, refresh_token
 `
 
-func (q *Queries) CreateUser(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, createUser, id)
-	err := row.Scan(&id)
-	return id, err
+type CreateUserParams struct {
+	ID           pgtype.UUID
+	PushToken    pgtype.Text
+	RefreshToken string
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.PushToken, arg.RefreshToken)
+	var i User
+	err := row.Scan(&i.ID, &i.PushToken, &i.RefreshToken)
+	return i, err
 }
 
 const ensureUser = `-- name: EnsureUser :exec
 INSERT INTO
-    users (id)
+    users (
+        id,
+        push_token,
+        refresh_token
+    )
 VALUES
-    ($1) ON CONFLICT (id) DO NOTHING
+    (
+        $1,
+        $2,
+        $3
+    ) ON CONFLICT (id) DO NOTHING
 `
 
-func (q *Queries) EnsureUser(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, ensureUser, id)
+type EnsureUserParams struct {
+	ID           pgtype.UUID
+	PushToken    pgtype.Text
+	RefreshToken string
+}
+
+func (q *Queries) EnsureUser(ctx context.Context, arg EnsureUserParams) error {
+	_, err := q.db.Exec(ctx, ensureUser, arg.ID, arg.PushToken, arg.RefreshToken)
 	return err
 }

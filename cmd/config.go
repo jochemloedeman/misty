@@ -11,8 +11,9 @@ import (
 )
 
 type config struct {
-	DatabaseURL       string
-	Port              string
+	DatabaseURL string
+	Port        string
+	Si
 	LogLevel          slog.Level
 	ReconcileInterval time.Duration
 	ForecastHorizon   monitor.TimeHorizon
@@ -36,6 +37,11 @@ func loadConfig() (config, error) {
 
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
+	}
+
+	cfg.SigningSecret = []byte(os.Getenv("SIGNING_SECRET"))
+	if len(cfg.SigningSecret) == 0 {
+		return config{}, fmt.Errorf("SIGNING_SECRET is required")
 	}
 
 	if v := os.Getenv("LOG_LEVEL"); v != "" {

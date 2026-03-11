@@ -7,6 +7,8 @@ require (
 	github.com/google/uuid v1.6.0
 )
 
+require github.com/golang-jwt/jwt/v5 v5.3.1
+
 require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	golang.org/x/sync v0.20.0

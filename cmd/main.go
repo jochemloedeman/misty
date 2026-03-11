@@ -23,10 +23,15 @@ func runServer(ctx context.Context, routes *api.API, port string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /monitors", routes.ListMonitors)
 	mux.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
+
 	mux.HandleFunc("POST /monitors", routes.CreateMonitor)
 	mux.HandleFunc("POST /monitors/{id}/deactivate", routes.SetMonitorStatus(false))
 	mux.HandleFunc("POST /monitors/{id}/activate", routes.SetMonitorStatus(true))
+
 	mux.HandleFunc("DELETE /monitors/{id}", routes.DeleteMonitor)
+
+	mux.HandleFunc("POST /register", routes.Register)
+	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -109,9 +114,10 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
-	clock := clock.NewFastClock(1. / 3600)
+	clock := clock.NewFastClock(1. / 360)
 
 	queries := sqlc.New(pool)
+	userStore := users.NewUserStore(queries)
 	refresher := monitor.NewRefresher(
 		weather.NewFakeForecaster(clock, 0.9, 1.),
 		monitor.NewMonitorStore(queries),
@@ -124,7 +130,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	routes := api.New(func(uid uuid.UUID) api.MonitorStore {
+	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
 		return monitor.NewScopedMonitorStore(uid, queries)
 	})
 

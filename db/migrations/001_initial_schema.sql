@@ -1,5 +1,9 @@
 -- +goose Up
-CREATE TABLE users(id UUID PRIMARY KEY);
+CREATE TABLE users(
+    id UUID PRIMARY KEY,
+    push_token TEXT UNIQUE,
+    refresh_token TEXT NOT NULL UNIQUE
+);
 
 CREATE TABLE monitors(
     id UUID PRIMARY KEY,
