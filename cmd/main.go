@@ -111,7 +111,7 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
-	clk := clock.NewFastClock(1. / 360)
+	clk := clock.NewFastClock(360.)
 
 	queries := sqlc.New(pool)
 	userStore := users.NewUserStore(queries)
@@ -122,7 +122,7 @@ func main() {
 		clk,
 	)
 
-	keyRing, err := users.NewKeyRing(cfg.SigningSecrets)
+	keyRing, err := users.NewKeyRing(cfg.SigningSecrets, clk.Now)
 	if err != nil {
 		slog.Error("invalid key ring configuration", "error", err)
 		os.Exit(1)

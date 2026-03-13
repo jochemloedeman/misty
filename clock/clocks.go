@@ -31,5 +31,5 @@ func (c FastClock) Now() time.Time {
 }
 
 func (c FastClock) NewTicker(d time.Duration) *time.Ticker {
-	return time.NewTicker(time.Duration(float64(d) * c.scale))
+	return time.NewTicker(time.Duration(float64(d) / c.scale))
 }

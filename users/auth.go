@@ -37,17 +37,18 @@ func hashToken(token string) string {
 
 type KeyRing struct {
 	keys [][]byte
+	now  func() time.Time
 }
 
-func NewKeyRing(keys [][]byte) (*KeyRing, error) {
+func NewKeyRing(keys [][]byte, now func() time.Time) (*KeyRing, error) {
 	if len(keys) == 0 {
 		return nil, errors.New("key ring requires at least one key")
 	}
-	return &KeyRing{keys: keys}, nil
+	return &KeyRing{keys: keys, now: now}, nil
 }
 
 func (kr *KeyRing) Issue(userID uuid.UUID) (string, error) {
-	token, err := CreateJWT(userID, kr.keys[0])
+	token, err := CreateJWT(userID, kr.keys[0], kr.now())
 	if err != nil {
 		return "", fmt.Errorf("issuing jwt: %w", err)
 	}
@@ -56,7 +57,7 @@ func (kr *KeyRing) Issue(userID uuid.UUID) (string, error) {
 
 func (kr *KeyRing) Verify(token string) (*Claims, error) {
 	for _, key := range kr.keys {
-		claims, err := ParseJWT(token, key)
+		claims, err := ParseJWT(token, key, kr.now)
 		if err == nil {
 			return claims, nil
 		}
@@ -68,8 +69,7 @@ func (kr *KeyRing) Verify(token string) (*Claims, error) {
 	return nil, ErrInvalidToken
 }
 
-func CreateJWT(userID uuid.UUID, secret []byte) (string, error) {
-	now := time.Now()
+func CreateJWT(userID uuid.UUID, secret []byte, now time.Time) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -84,13 +84,13 @@ func CreateJWT(userID uuid.UUID, secret []byte) (string, error) {
 	return token.SignedString(secret)
 }
 
-func ParseJWT(encoded string, secret []byte) (*Claims, error) {
+func ParseJWT(encoded string, secret []byte, nowFn func() time.Time) (*Claims, error) {
 	parsed, err := jwt.ParseWithClaims(encoded, &Claims{}, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrTokenUnverifiable
 		}
 		return secret, nil
-	})
+	}, jwt.WithTimeFunc(nowFn))
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrExpiredToken
