@@ -64,3 +64,21 @@ func (q *Queries) EnsureUser(ctx context.Context, arg EnsureUserParams) error {
 	_, err := q.db.Exec(ctx, ensureUser, arg.ID, arg.PushToken, arg.RefreshToken)
 	return err
 }
+
+const getByRefreshToken = `-- name: GetByRefreshToken :one
+SELECT
+    id,
+    push_token,
+    refresh_token
+FROM
+    users
+WHERE
+    refresh_token = $1
+`
+
+func (q *Queries) GetByRefreshToken(ctx context.Context, refreshToken string) (User, error) {
+	row := q.db.QueryRow(ctx, getByRefreshToken, refreshToken)
+	var i User
+	err := row.Scan(&i.ID, &i.PushToken, &i.RefreshToken)
+	return i, err
+}

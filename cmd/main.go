@@ -19,23 +19,23 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func runServer(ctx context.Context, routes *api.API, port string) error {
+func runServer(ctx context.Context, routes *api.API, verifier api.TokenVerifier, port string) error {
+	authenticated := http.NewServeMux()
+	authenticated.HandleFunc("GET /monitors", routes.ListMonitors)
+	authenticated.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
+	authenticated.HandleFunc("POST /monitors", routes.CreateMonitor)
+	authenticated.HandleFunc("POST /monitors/{id}/deactivate", routes.SetMonitorStatus(false))
+	authenticated.HandleFunc("POST /monitors/{id}/activate", routes.SetMonitorStatus(true))
+	authenticated.HandleFunc("DELETE /monitors/{id}", routes.DeleteMonitor)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /monitors", routes.ListMonitors)
-	mux.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
-
-	mux.HandleFunc("POST /monitors", routes.CreateMonitor)
-	mux.HandleFunc("POST /monitors/{id}/deactivate", routes.SetMonitorStatus(false))
-	mux.HandleFunc("POST /monitors/{id}/activate", routes.SetMonitorStatus(true))
-
-	mux.HandleFunc("DELETE /monitors/{id}", routes.DeleteMonitor)
-
+	mux.Handle("/", api.RequireUser(verifier)(authenticated))
 	mux.HandleFunc("POST /register", routes.Register)
 	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: api.RequestLogger(api.RequireUser(mux)),
+		Handler: api.RequestLogger(mux),
 	}
 
 	go func() {
@@ -53,7 +53,11 @@ func runServer(ctx context.Context, routes *api.API, port string) error {
 }
 
 func seedDevUser(ctx context.Context, q *sqlc.Queries) error {
-	devUser := users.User{ID: uuid.MustParse("00000000-0000-0000-0000-000000000001")}
+	devUser := users.User{
+		ID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		PushToken:    "devtoken",
+		RefreshToken: "devrefreshtoken",
+	}
 	userStore := users.NewUserStore(q)
 	return userStore.Ensure(ctx, devUser)
 }
@@ -125,6 +129,8 @@ func main() {
 		clock,
 	)
 
+	keyRing := users.NewKeyRing(cfg.SigningSecrets)
+
 	if err := seedDevUser(ctx, queries); err != nil {
 		slog.Error("failed to seed dev user", "error", err)
 		os.Exit(1)
@@ -132,7 +138,7 @@ func main() {
 
 	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
 		return monitor.NewScopedMonitorStore(uid, queries)
-	})
+	}, keyRing)
 
 	notifier := notifications.NewNotifier(
 		notifications.NewOutbox(queries),
@@ -144,7 +150,7 @@ func main() {
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		return runServer(ctx, routes, cfg.Port)
+		return runServer(ctx, routes, keyRing, cfg.Port)
 	})
 	group.Go(func() error {
 		return runReconciliation(

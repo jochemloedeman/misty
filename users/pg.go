@@ -2,9 +2,11 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jochemloedeman/misty/db/sqlc"
 )
@@ -58,4 +60,17 @@ func (s *UserStore) Ensure(ctx context.Context, u User) error {
 		return fmt.Errorf("failed to ensure user: %w", err)
 	}
 	return nil
+}
+
+func (s *UserStore) GetByRefreshToken(ctx context.Context, refreshToken string) (User, error) {
+	hashed := hashToken(refreshToken)
+	dbUser, err := s.queries.GetByRefreshToken(ctx, hashed)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, ErrNotFound
+		}
+		return User{}, fmt.Errorf("failed to get user by refresh token: %w", err)
+	}
+	return toDomainUser(dbUser), nil
+
 }

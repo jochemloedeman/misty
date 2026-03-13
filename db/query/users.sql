@@ -25,3 +25,13 @@ VALUES
         sqlc.arg('push_token'),
         sqlc.arg('refresh_token')
     ) ON CONFLICT (id) DO NOTHING;
+
+-- name: GetByRefreshToken :one
+SELECT
+    id,
+    push_token,
+    refresh_token
+FROM
+    users
+WHERE
+    refresh_token = sqlc.arg('refresh_token');
