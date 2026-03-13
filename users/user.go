@@ -9,20 +9,19 @@ import (
 var ErrNotFound = errors.New("user not found")
 
 type User struct {
-	ID           uuid.UUID
-	PushToken    string
-	RefreshToken string
+	ID               uuid.UUID
+	PushToken        string
+	RefreshTokenHash string
 }
 
 func NewUser(pushToken string) (User, string, error) {
-	r, err := generateSecretToken()
+	plainToken, err := generateSecretToken()
 	if err != nil {
 		return User{}, "", err
 	}
-	hashedToken := hashToken(r)
 	return User{
-		ID:           uuid.New(),
-		PushToken:    pushToken,
-		RefreshToken: hashedToken,
-	}, r, nil
+		ID:               uuid.New(),
+		PushToken:        pushToken,
+		RefreshTokenHash: hashToken(plainToken),
+	}, plainToken, nil
 }

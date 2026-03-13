@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -41,25 +42,17 @@ func runServer(ctx context.Context, routes *api.API, verifier api.TokenVerifier,
 	go func() {
 		<-ctx.Done()
 		slog.Info("http server shutting down")
-		_ = srv.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
 	}()
 
 	slog.Info("http server listening", "addr", srv.Addr)
 	err := srv.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
-}
-
-func seedDevUser(ctx context.Context, q *sqlc.Queries) error {
-	devUser := users.User{
-		ID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-		PushToken:    "devtoken",
-		RefreshToken: "devrefreshtoken",
-	}
-	userStore := users.NewUserStore(q)
-	return userStore.Ensure(ctx, devUser)
 }
 
 func runReconciliation(
@@ -118,24 +111,22 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
-	clock := clock.NewFastClock(1. / 360)
+	clk := clock.NewFastClock(1. / 360)
 
 	queries := sqlc.New(pool)
 	userStore := users.NewUserStore(queries)
 	refresher := monitor.NewRefresher(
-		weather.NewFakeForecaster(clock, 0.9, 1.),
+		weather.NewFakeForecaster(clk, 0.9, 1.),
 		monitor.NewMonitorStore(queries),
 		monitor.NewRunAtomically(pool),
-		clock,
+		clk,
 	)
 
-	keyRing := users.NewKeyRing(cfg.SigningSecrets)
-
-	if err := seedDevUser(ctx, queries); err != nil {
-		slog.Error("failed to seed dev user", "error", err)
+	keyRing, err := users.NewKeyRing(cfg.SigningSecrets)
+	if err != nil {
+		slog.Error("invalid key ring configuration", "error", err)
 		os.Exit(1)
 	}
-
 	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
 		return monitor.NewScopedMonitorStore(uid, queries)
 	}, keyRing)
@@ -159,7 +150,7 @@ func main() {
 			notifier,
 			cfg.ReconcileInterval,
 			cfg.ForecastHorizon,
-			clock,
+			clk,
 		)
 	})
 	if err := group.Wait(); err != nil {

@@ -39,11 +39,11 @@ type KeyRing struct {
 	keys [][]byte
 }
 
-func NewKeyRing(keys [][]byte) *KeyRing {
+func NewKeyRing(keys [][]byte) (*KeyRing, error) {
 	if len(keys) == 0 {
-		panic("users: NewKeyRing requires at least one key")
+		return nil, errors.New("key ring requires at least one key")
 	}
-	return &KeyRing{keys: keys}
+	return &KeyRing{keys: keys}, nil
 }
 
 func (kr *KeyRing) Issue(userID uuid.UUID) (string, error) {
@@ -61,6 +61,7 @@ func (kr *KeyRing) Verify(token string) (*Claims, error) {
 			return claims, nil
 		}
 		if errors.Is(err, ErrExpiredToken) {
+			// we don't try other keys if the token is expired
 			return nil, err
 		}
 	}

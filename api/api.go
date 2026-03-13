@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -277,7 +278,7 @@ func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 		PushToken string `json:"push_token"`
 	}
 	var p params
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil && !errors.Is(err, io.EOF) {
 		slog.Debug("failed to decode request body", "error", err)
 		writeError(w, http.StatusBadRequest, withMessage("invalid request body"))
 		return
