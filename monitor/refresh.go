@@ -145,7 +145,6 @@ func (r *Refresher) refresh(
 ) error {
 	now := r.clock.Now()
 	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
-
 	if err != nil {
 		return fmt.Errorf("forecast: %w", err)
 	}

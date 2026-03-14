@@ -4,16 +4,16 @@ import "time"
 
 type RealClock struct{}
 
+func NewRealClock() RealClock {
+	return RealClock{}
+}
+
 func (RealClock) Now() time.Time {
 	return time.Now()
 }
 
 func (RealClock) NewTicker(d time.Duration) *time.Ticker {
 	return time.NewTicker(d)
-}
-
-func NewRealClock() RealClock {
-	return RealClock{}
 }
 
 type FastClock struct {

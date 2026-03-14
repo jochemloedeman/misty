@@ -6,7 +6,7 @@ import (
 )
 
 type outbox interface {
-	ListUnsent(context.Context) ([]Notification, error)
+	ListUnsent(ctx context.Context) ([]Notification, error)
 }
 
 type deliver func(context.Context, Notification) error

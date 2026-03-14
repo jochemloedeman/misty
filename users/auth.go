@@ -18,8 +18,8 @@ var (
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
 	jwt.RegisteredClaims
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func generateSecretToken() (string, error) {

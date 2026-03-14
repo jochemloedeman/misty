@@ -145,7 +145,6 @@ func (m Monitor) Deactivate() Monitor {
 	m.IsActive = false
 	m.ActiveAlert = nil
 	return m
-
 }
 
 func (m Monitor) Activate() Monitor {

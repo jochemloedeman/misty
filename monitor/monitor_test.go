@@ -8,21 +8,25 @@ import (
 	"github.com/google/uuid"
 )
 
-var defaultUUID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
-var defaultLocation = Location{
-	Name: "Test Location",
-	Lat:  0.0,
-	Lon:  0.0,
-}
+var (
+	defaultUUID     = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	defaultLocation = Location{
+		Name: "Test Location",
+		Lat:  0.0,
+		Lon:  0.0,
+	}
+)
 
-var defaultTime = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-var noFogVariables = WeatherVariables{
-	Temperature:      20,
-	DewPoint:         10,
-	RelativeHumidity: 50,
-	WindSpeed:        5,
-	Visibility:       10000,
-}
+var (
+	defaultTime    = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	noFogVariables = WeatherVariables{
+		Temperature:      20,
+		DewPoint:         10,
+		RelativeHumidity: 50,
+		WindSpeed:        5,
+		Visibility:       10000,
+	}
+)
 
 var fogVariables = WeatherVariables{
 	Temperature:      10,

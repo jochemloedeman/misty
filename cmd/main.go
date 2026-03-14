@@ -53,6 +53,7 @@ func runServer(
 	go func() {
 		<-ctx.Done()
 		slog.Info("http server shutting down")
+
 		shutdownCtx, cancel := context.WithTimeout(
 			context.Background(),
 			10*time.Second,
@@ -62,10 +63,12 @@ func runServer(
 	}()
 
 	slog.Info("http server listening", "addr", srv.Addr)
+
 	err := srv.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+
 	return nil
 }
 
@@ -84,14 +87,17 @@ func runReconciliation(
 		select {
 		case <-ticker.C:
 			slog.Debug("reconciliation tick")
+
 			err := refresher.RefreshAll(ctx, horizon)
 			if err != nil {
 				return err
 			}
+
 			err = notifier.Notify(ctx)
 			if err != nil {
 				return err
 			}
+
 			slog.Debug("reconciliation complete")
 		case <-ctx.Done():
 			return nil
@@ -119,11 +125,13 @@ func main() {
 	)
 
 	ctx := context.Background()
+
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
+
 	defer pool.Close()
 	slog.Info("database connected")
 
@@ -157,6 +165,7 @@ func main() {
 				"recipient_id",
 				notif.RecipientID,
 			)
+
 			return nil
 		},
 	)
@@ -175,9 +184,9 @@ func main() {
 			clk,
 		)
 	})
+
 	if err := group.Wait(); err != nil {
 		slog.Error("application error", "error", err)
 		os.Exit(1)
 	}
-
 }

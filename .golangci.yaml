@@ -1,8 +1,25 @@
 version: "2"
+linters:
+  default: fast
+  disable:
+    - depguard
+    - funlen
+    - wsl
+    - nlreturn
+    - embeddedstructfieldcheck
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - maintidx
+          - testpackage
 formatters:
   enable:
-    - golines
+    - gci
+    - gofmt
+    - gofumpt
     - goimports
+    - golines
   settings:
     golines:
-      max-len: 80
+      max-len: 100

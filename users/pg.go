@@ -75,5 +75,4 @@ func (s *UserStore) GetByRefreshToken(
 		return User{}, fmt.Errorf("getting user by refresh token: %w", err)
 	}
 	return toDomainUser(dbUser), nil
-
 }

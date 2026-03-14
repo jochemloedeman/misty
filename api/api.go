@@ -346,7 +346,6 @@ func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: plainRefreshToken,
 	})
-
 }
 
 func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
@@ -389,5 +388,4 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response{
 		AccessToken: accessToken,
 	})
-
 }

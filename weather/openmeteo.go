@@ -56,6 +56,7 @@ func allEqual(values ...int) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -174,5 +175,6 @@ func (f *Forecaster) Forecast(
 		"forecast_count",
 		len(forecasts),
 	)
+
 	return forecasts, nil
 }

@@ -19,7 +19,7 @@ type config struct {
 	ForecastHorizon   monitor.ForecastHorizon
 }
 
-func loadConfig() (config, error) {
+func loadConfig() (config, error) { //nolint:cyclop
 	cfg := config{
 		Port:              "8080",
 		LogLevel:          slog.LevelInfo,
