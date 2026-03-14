@@ -65,12 +65,12 @@ func allEqual(values ...int) bool {
 }
 
 type variablesResponse struct {
-	Time             []time.Time `json:"time"`
-	Temperature      []float64   `json:"temperature_2m"`
-	DewPoint         []float64   `json:"dew_point_2m"`
-	RelativeHumidity []float64   `json:"relative_humidity_2m"`
-	WindSpeed        []float64   `json:"wind_speed_10m"`
-	Visibility       []float64   `json:"visibility"`
+	Time             []string  `json:"time"`
+	Temperature      []float64 `json:"temperature_2m"`
+	DewPoint         []float64 `json:"dew_point_2m"`
+	RelativeHumidity []float64 `json:"relative_humidity_2m"`
+	WindSpeed        []float64 `json:"wind_speed_10m"`
+	Visibility       []float64 `json:"visibility"`
 }
 
 type response struct {
@@ -161,8 +161,12 @@ func (f *Forecaster) Forecast(
 
 	forecasts := make([]monitor.Forecast, len(vars.Time))
 	for i := range vars.Time {
+		casted, err := time.Parse("2006-01-02T15:04", vars.Time[i])
+		if err != nil {
+			return nil, fmt.Errorf("parsing time: %w", err)
+		}
 		forecasts[i] = monitor.Forecast{
-			Time: vars.Time[i],
+			Time: casted,
 			WeatherVariables: monitor.WeatherVariables{
 				Temperature:      vars.Temperature[i],
 				DewPoint:         vars.DewPoint[i],

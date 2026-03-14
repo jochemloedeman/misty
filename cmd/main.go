@@ -78,6 +78,28 @@ func runServer(
 	return nil
 }
 
+func doReconciliation(
+	ctx context.Context,
+	refresher *monitor.Refresher,
+	notifier *notifications.Notifier,
+	horizon monitor.ForecastHorizon,
+) error {
+	slog.Debug("starting reconciliation")
+
+	err := refresher.RefreshAll(ctx, horizon)
+	if err != nil {
+		return err
+	}
+
+	err = notifier.Notify(ctx)
+	if err != nil {
+		return err
+	}
+
+	slog.Debug("reconciliation complete")
+	return nil
+}
+
 func runReconciliation(
 	ctx context.Context,
 	refresher *monitor.Refresher,
@@ -89,22 +111,16 @@ func runReconciliation(
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
 
+	if err := doReconciliation(ctx, refresher, notifier, horizon); err != nil {
+		slog.Error("reconciliation error", "error", err)
+	}
+
 	for {
 		select {
 		case <-ticker.C:
-			slog.Debug("reconciliation tick")
-
-			err := refresher.RefreshAll(ctx, horizon)
-			if err != nil {
-				return err
+			if err := doReconciliation(ctx, refresher, notifier, horizon); err != nil {
+				slog.Error("reconciliation error", "error", err)
 			}
-
-			err = notifier.Notify(ctx)
-			if err != nil {
-				return err
-			}
-
-			slog.Debug("reconciliation complete")
 		case <-ctx.Done():
 			return nil
 		}
@@ -145,8 +161,10 @@ func main() {
 
 	queries := sqlc.New(pool)
 	userStore := users.NewUserStore(queries)
+
 	refresher := monitor.NewRefresher(
-		weather.NewFakeForecaster(clk, defaultFogChance, defaultFogForecastChance),
+		// weather.NewFakeForecaster(clk, defaultFogChance, defaultFogForecastChance),
+		weather.NewForecaster(&http.Client{}),
 		monitor.NewMonitorStore(queries),
 		monitor.NewRunAtomically(pool),
 		clk,
