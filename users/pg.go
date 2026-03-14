@@ -62,7 +62,10 @@ func (s *UserStore) Ensure(ctx context.Context, u User) error {
 	return nil
 }
 
-func (s *UserStore) GetByRefreshToken(ctx context.Context, plainRefreshToken string) (User, error) {
+func (s *UserStore) GetByRefreshToken(
+	ctx context.Context,
+	plainRefreshToken string,
+) (User, error) {
 	hashed := hashToken(plainRefreshToken)
 	dbUser, err := s.queries.GetByRefreshToken(ctx, hashed)
 	if err != nil {

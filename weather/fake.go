@@ -18,7 +18,10 @@ type FakeForecaster struct {
 	chanceOfForecastIfFog float64
 }
 
-func NewFakeForecaster(clock Clock, chanceOfFog, chanceOfForecastIfFog float64) FakeForecaster {
+func NewFakeForecaster(
+	clock Clock,
+	chanceOfFog, chanceOfForecastIfFog float64,
+) FakeForecaster {
 	return FakeForecaster{
 		clock:                 clock,
 		chanceOfFog:           chanceOfFog,
@@ -52,22 +55,35 @@ func fogForecast(ts time.Time) monitor.Forecast {
 	}
 }
 
-func (f FakeForecaster) Forecast(ctx context.Context, location monitor.Location, horizon monitor.TimeHorizon) ([]monitor.Forecast, error) {
+func (f FakeForecaster) Forecast(
+	ctx context.Context,
+	location monitor.Location,
+	horizon monitor.ForecastHorizon,
+) ([]monitor.Forecast, error) {
 	forecasts := make([]monitor.Forecast, horizon.Steps)
 	fog := rand.Float64() < f.chanceOfFog
 	now := f.clock.Now()
-	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	dayStart := time.Date(
+		now.Year(),
+		now.Month(),
+		now.Day(),
+		0,
+		0,
+		0,
+		0,
+		now.Location(),
+	)
 
 	if !fog {
 		for i := 0; i < horizon.Steps; i++ {
-			timeOffset := time.Duration(i) * horizon.Granularity
+			timeOffset := time.Duration(i) * horizon.Interval
 			forecasts[i] = noFogForecast(dayStart.Add(timeOffset))
 		}
 		return forecasts, nil
 	}
 	for i := 0; i < horizon.Steps; i++ {
 		foggyForecast := rand.Float64() < f.chanceOfForecastIfFog
-		timeOffset := time.Duration(i) * horizon.Granularity
+		timeOffset := time.Duration(i) * horizon.Interval
 		if foggyForecast {
 			forecasts[i] = fogForecast(dayStart.Add(timeOffset))
 		} else {

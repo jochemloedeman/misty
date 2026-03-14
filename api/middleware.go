@@ -53,7 +53,9 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 				}
 				return
 			}
-			newRequest := r.WithContext(context.WithValue(r.Context(), userIDKey, claims.UserID))
+			newRequest := r.WithContext(
+				context.WithValue(r.Context(), userIDKey, claims.UserID),
+			)
 			next.ServeHTTP(w, newRequest)
 		})
 	}
@@ -62,7 +64,10 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		writer := &StatusResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}
+		writer := &StatusResponseWriter{
+			ResponseWriter: w,
+			StatusCode:     http.StatusOK,
+		}
 		next.ServeHTTP(writer, r)
 
 		attrs := []any{

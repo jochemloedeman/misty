@@ -11,12 +11,12 @@ import (
 )
 
 type config struct {
-	DatabaseURL string
-	Port        string
-	SigningSecrets [][]byte
+	DatabaseURL       string
+	Port              string
+	SigningSecrets    [][]byte
 	LogLevel          slog.Level
 	ReconcileInterval time.Duration
-	ForecastHorizon   monitor.TimeHorizon
+	ForecastHorizon   monitor.ForecastHorizon
 }
 
 func loadConfig() (config, error) {
@@ -24,9 +24,9 @@ func loadConfig() (config, error) {
 		Port:              "8080",
 		LogLevel:          slog.LevelInfo,
 		ReconcileInterval: 15 * time.Minute,
-		ForecastHorizon: monitor.TimeHorizon{
-			Granularity: time.Hour,
-			Steps:       15,
+		ForecastHorizon: monitor.ForecastHorizon{
+			Interval: time.Hour,
+			Steps:    15,
 		},
 	}
 
@@ -59,7 +59,11 @@ func loadConfig() (config, error) {
 	if v := os.Getenv("RECONCILE_INTERVAL"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return config{}, fmt.Errorf("invalid RECONCILE_INTERVAL %q: %w", v, err)
+			return config{}, fmt.Errorf(
+				"invalid RECONCILE_INTERVAL %q: %w",
+				v,
+				err,
+			)
 		}
 		cfg.ReconcileInterval = d
 	}
@@ -67,9 +71,13 @@ func loadConfig() (config, error) {
 	if v := os.Getenv("FORECAST_GRANULARITY"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return config{}, fmt.Errorf("invalid FORECAST_GRANULARITY %q: %w", v, err)
+			return config{}, fmt.Errorf(
+				"invalid FORECAST_GRANULARITY %q: %w",
+				v,
+				err,
+			)
 		}
-		cfg.ForecastHorizon.Granularity = d
+		cfg.ForecastHorizon.Interval = d
 	}
 
 	if v := os.Getenv("FORECAST_STEPS"); v != "" {

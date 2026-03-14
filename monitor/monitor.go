@@ -65,18 +65,17 @@ func (c AlertChange) NeedsNotification() bool {
 	}
 }
 
-type TimeHorizon struct {
-	Granularity time.Duration
-	Steps       int
+type ForecastHorizon struct {
+	Interval time.Duration
+	Steps    int
 }
 
 type Monitor struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	IsActive     bool
-	Location     Location
-	AlertHorizon TimeHorizon
-	ActiveAlert  *Alert
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	IsActive    bool
+	Location    Location
+	ActiveAlert *Alert
 }
 
 func NewMonitor(userID uuid.UUID, location Location) Monitor {
@@ -110,7 +109,10 @@ func detectFog(forecasts []Forecast) *Alert {
 	return &Alert{Start: start, End: end}
 }
 
-func (m Monitor) ReconcileAlert(now time.Time, forecasts []Forecast) (Monitor, AlertChange) {
+func (m Monitor) ReconcileAlert(
+	now time.Time,
+	forecasts []Forecast,
+) (Monitor, AlertChange) {
 	newAlert := detectFog(forecasts)
 
 	switch {

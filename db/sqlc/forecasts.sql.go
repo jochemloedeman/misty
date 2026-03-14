@@ -87,7 +87,7 @@ type UpsertForecastParams struct {
 	DewPoint         float64
 	RelativeHumidity float64
 	WindSpeed        float64
-	Visibility       int32
+	Visibility       float64
 }
 
 func (q *Queries) UpsertForecast(ctx context.Context, arg UpsertForecastParams) (Forecast, error) {

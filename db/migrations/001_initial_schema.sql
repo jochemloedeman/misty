@@ -33,7 +33,7 @@ CREATE TABLE forecasts(
     dew_point DOUBLE PRECISION NOT NULL,
     relative_humidity DOUBLE PRECISION NOT NULL,
     wind_speed DOUBLE PRECISION NOT NULL,
-    visibility INT NOT NULL,
+    visibility DOUBLE PRECISION NOT NULL,
     PRIMARY KEY (forecast_at, monitor_id)
 );
 

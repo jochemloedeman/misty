@@ -12,6 +12,10 @@ func (RealClock) NewTicker(d time.Duration) *time.Ticker {
 	return time.NewTicker(d)
 }
 
+func NewRealClock() RealClock {
+	return RealClock{}
+}
+
 type FastClock struct {
 	inception time.Time
 	scale     float64

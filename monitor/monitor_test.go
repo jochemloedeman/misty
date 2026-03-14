@@ -34,10 +34,10 @@ var fogVariables = WeatherVariables{
 
 func TestReconcileAlert(t *testing.T) {
 	testCases := []struct {
-		name          string
-		monitor       Monitor
-		forecasts     []Forecast
-		expected AlertChange
+		name      string
+		monitor   Monitor
+		forecasts []Forecast
+		expected  AlertChange
 	}{
 		{
 			name: "clear - no current alert",
@@ -154,8 +154,11 @@ func TestReconcileAlert(t *testing.T) {
 				},
 			},
 			expected: AlertChange{
-				Type:  Unchanged,
-				Alert: &Alert{Start: defaultTime, End: defaultTime.Add(1 * time.Hour)},
+				Type: Unchanged,
+				Alert: &Alert{
+					Start: defaultTime,
+					End:   defaultTime.Add(1 * time.Hour),
+				},
 			},
 		},
 		{
@@ -352,12 +355,24 @@ func TestReconcileAlert(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotMonitor, gotChange := tc.monitor.ReconcileAlert(defaultTime, tc.forecasts)
+			gotMonitor, gotChange := tc.monitor.ReconcileAlert(
+				defaultTime,
+				tc.forecasts,
+			)
 			if diff := cmp.Diff(tc.expected, gotChange); diff != "" {
-				t.Errorf("ReconcileAlert() AlertChange mismatch (-want +got):\n%s", diff)
+				t.Errorf(
+					"ReconcileAlert() AlertChange mismatch (-want +got):\n%s",
+					diff,
+				)
 			}
-			if diff := cmp.Diff(tc.expected.Alert, gotMonitor.ActiveAlert); diff != "" {
-				t.Errorf("ReconcileAlert() Monitor.ActiveAlert mismatch (-want +got):\n%s", diff)
+			if diff := cmp.Diff(
+				tc.expected.Alert,
+				gotMonitor.ActiveAlert,
+			); diff != "" {
+				t.Errorf(
+					"ReconcileAlert() Monitor.ActiveAlert mismatch (-want +got):\n%s",
+					diff,
+				)
 			}
 		})
 	}

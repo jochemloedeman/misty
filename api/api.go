@@ -28,7 +28,10 @@ type MonitorStore interface {
 
 type UserStore interface {
 	Create(ctx context.Context, u users.User) (users.User, error)
-	GetByRefreshToken(ctx context.Context, refreshToken string) (users.User, error)
+	GetByRefreshToken(
+		ctx context.Context,
+		refreshToken string,
+	) (users.User, error)
 }
 
 type TokenVerifier interface {
@@ -82,7 +85,11 @@ type API struct {
 	issuer          TokenIssuer
 }
 
-func New(userStore UserStore, newMonitorStore func(userID uuid.UUID) MonitorStore, issuer TokenIssuer) *API {
+func New(
+	userStore UserStore,
+	newMonitorStore func(userID uuid.UUID) MonitorStore,
+	issuer TokenIssuer,
+) *API {
 	return &API{
 		userStore:       userStore,
 		newMonitorStore: newMonitorStore,
@@ -182,7 +189,11 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		slog.Debug("failed to decode request body", "error", err)
-		writeError(w, http.StatusBadRequest, withMessage("invalid request body"))
+		writeError(
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid request body"),
+		)
 		return
 	}
 
@@ -200,7 +211,15 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("monitor created", "monitor_id", created.ID, "user_id", uid, "location", created.Location.Name)
+	slog.Info(
+		"monitor created",
+		"monitor_id",
+		created.ID,
+		"user_id",
+		uid,
+		"location",
+		created.Location.Name,
+	)
 
 	res := toMonitorResponse(created)
 	writeJSON(w, http.StatusCreated, res)
@@ -212,7 +231,11 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 
 		mid, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
-			writeError(w, http.StatusBadRequest, withMessage("invalid monitor id"))
+			writeError(
+				w,
+				http.StatusBadRequest,
+				withMessage("invalid monitor id"),
+			)
 			return
 		}
 
@@ -242,7 +265,13 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 
-		slog.Info("monitor status changed", "monitor_id", updated.ID, "is_active", updated.IsActive)
+		slog.Info(
+			"monitor status changed",
+			"monitor_id",
+			updated.ID,
+			"is_active",
+			updated.IsActive,
+		)
 
 		writeJSON(w, http.StatusOK, toMonitorResponse(updated))
 	}
@@ -278,9 +307,15 @@ func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 		PushToken string `json:"push_token"`
 	}
 	var p params
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil && !errors.Is(err, io.EOF) {
+	if err := json.NewDecoder(r.Body).
+		Decode(&p); err != nil &&
+		!errors.Is(err, io.EOF) {
 		slog.Debug("failed to decode request body", "error", err)
-		writeError(w, http.StatusBadRequest, withMessage("invalid request body"))
+		writeError(
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid request body"),
+		)
 		return
 	}
 
@@ -321,14 +356,22 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		slog.Debug("failed to decode request body", "error", err)
-		writeError(w, http.StatusBadRequest, withMessage("invalid request body"))
+		writeError(
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid request body"),
+		)
 		return
 	}
 
 	user, err := s.userStore.GetByRefreshToken(r.Context(), p.RefreshToken)
 	if err != nil {
 		if errors.Is(err, users.ErrNotFound) {
-			writeError(w, http.StatusUnauthorized, withMessage("invalid refresh token"))
+			writeError(
+				w,
+				http.StatusUnauthorized,
+				withMessage("invalid refresh token"),
+			)
 			return
 		}
 		writeError(w, http.StatusInternalServerError)

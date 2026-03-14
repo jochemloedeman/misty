@@ -39,7 +39,10 @@ func NewOutbox(queries *sqlc.Queries) *pgOutbox {
 	return &pgOutbox{queries: queries}
 }
 
-func (o *pgOutbox) Create(ctx context.Context, notif Notification) (Notification, error) {
+func (o *pgOutbox) Create(
+	ctx context.Context,
+	notif Notification,
+) (Notification, error) {
 	params := sqlc.CreateNotificationParams{
 		ID:          dbUUID(notif.ID),
 		RecipientID: dbUUID(notif.RecipientID),
@@ -48,7 +51,10 @@ func (o *pgOutbox) Create(ctx context.Context, notif Notification) (Notification
 	}
 	row, err := o.queries.CreateNotification(ctx, params)
 	if err != nil {
-		return Notification{}, fmt.Errorf("failed to create notification: %w", err)
+		return Notification{}, fmt.Errorf(
+			"failed to create notification: %w",
+			err,
+		)
 	}
 	return toDomainNotification(row), nil
 }

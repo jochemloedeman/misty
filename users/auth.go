@@ -84,13 +84,22 @@ func CreateJWT(userID uuid.UUID, secret []byte, now time.Time) (string, error) {
 	return token.SignedString(secret)
 }
 
-func ParseJWT(encoded string, secret []byte, nowFn func() time.Time) (*Claims, error) {
-	parsed, err := jwt.ParseWithClaims(encoded, &Claims{}, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrTokenUnverifiable
-		}
-		return secret, nil
-	}, jwt.WithTimeFunc(nowFn))
+func ParseJWT(
+	encoded string,
+	secret []byte,
+	nowFn func() time.Time,
+) (*Claims, error) {
+	parsed, err := jwt.ParseWithClaims(
+		encoded,
+		&Claims{},
+		func(token *jwt.Token) (any, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrTokenUnverifiable
+			}
+			return secret, nil
+		},
+		jwt.WithTimeFunc(nowFn),
+	)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrExpiredToken

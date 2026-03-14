@@ -35,7 +35,13 @@ func (n *Notifier) Notify(ctx context.Context) error {
 		if err := n.deliver(ctx, notification); err != nil {
 			return err
 		}
-		slog.Info("notification delivered", "notification_id", notification.ID, "recipient_id", notification.RecipientID)
+		slog.Info(
+			"notification delivered",
+			"notification_id",
+			notification.ID,
+			"recipient_id",
+			notification.RecipientID,
+		)
 	}
 
 	return nil

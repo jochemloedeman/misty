@@ -20,13 +20,24 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func runServer(ctx context.Context, routes *api.API, verifier api.TokenVerifier, port string) error {
+func runServer(
+	ctx context.Context,
+	routes *api.API,
+	verifier api.TokenVerifier,
+	port string,
+) error {
 	authenticated := http.NewServeMux()
 	authenticated.HandleFunc("GET /monitors", routes.ListMonitors)
 	authenticated.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
 	authenticated.HandleFunc("POST /monitors", routes.CreateMonitor)
-	authenticated.HandleFunc("POST /monitors/{id}/deactivate", routes.SetMonitorStatus(false))
-	authenticated.HandleFunc("POST /monitors/{id}/activate", routes.SetMonitorStatus(true))
+	authenticated.HandleFunc(
+		"POST /monitors/{id}/deactivate",
+		routes.SetMonitorStatus(false),
+	)
+	authenticated.HandleFunc(
+		"POST /monitors/{id}/activate",
+		routes.SetMonitorStatus(true),
+	)
 	authenticated.HandleFunc("DELETE /monitors/{id}", routes.DeleteMonitor)
 
 	mux := http.NewServeMux()
@@ -42,7 +53,10 @@ func runServer(ctx context.Context, routes *api.API, verifier api.TokenVerifier,
 	go func() {
 		<-ctx.Done()
 		slog.Info("http server shutting down")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			10*time.Second,
+		)
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
 	}()
@@ -60,8 +74,8 @@ func runReconciliation(
 	refresher *monitor.Refresher,
 	notifier *notifications.Notifier,
 	interval time.Duration,
-	horizon monitor.TimeHorizon,
-	clock clock.FastClock,
+	horizon monitor.ForecastHorizon,
+	clock clock.RealClock,
 ) error {
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
@@ -92,9 +106,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: cfg.LogLevel,
-	})))
+	slog.SetDefault(
+		slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: cfg.LogLevel,
+		})),
+	)
 	slog.Info("starting misty",
 		"port", cfg.Port,
 		"log_level", cfg.LogLevel,
@@ -111,7 +127,7 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
-	clk := clock.NewFastClock(360.)
+	clk := clock.NewRealClock()
 
 	queries := sqlc.New(pool)
 	userStore := users.NewUserStore(queries)
@@ -134,7 +150,13 @@ func main() {
 	notifier := notifications.NewNotifier(
 		notifications.NewOutbox(queries),
 		func(ctx context.Context, notif notifications.Notification) error {
-			slog.Info("delivering notification", "notification_id", notif.ID, "recipient_id", notif.RecipientID)
+			slog.Info(
+				"delivering notification",
+				"notification_id",
+				notif.ID,
+				"recipient_id",
+				notif.RecipientID,
+			)
 			return nil
 		},
 	)

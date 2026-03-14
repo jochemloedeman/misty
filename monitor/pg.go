@@ -33,7 +33,11 @@ func toDomainMonitor(row sqlc.Monitor) Monitor {
 		ID:       uuid.UUID(row.ID.Bytes),
 		UserID:   uuid.UUID(row.UserID.Bytes),
 		IsActive: row.IsActive,
-		Location: Location{Name: row.LocationName, Lat: row.Latitude, Lon: row.Longitude},
+		Location: Location{
+			Name: row.LocationName,
+			Lat:  row.Latitude,
+			Lon:  row.Longitude,
+		},
 	}
 	if row.AlertStart.Valid {
 		m.ActiveAlert = &Alert{
@@ -52,7 +56,7 @@ func toDomainForecast(row sqlc.Forecast) Forecast {
 			DewPoint:         row.DewPoint,
 			RelativeHumidity: row.RelativeHumidity,
 			WindSpeed:        row.WindSpeed,
-			Visibility:       int(row.Visibility),
+			Visibility:       row.Visibility,
 		},
 	}
 }
@@ -78,7 +82,10 @@ func (s *pgMonitorStore) ListAllActive(ctx context.Context) ([]Monitor, error) {
 	return monitors, nil
 }
 
-func (s *pgMonitorStore) Update(ctx context.Context, m Monitor) (Monitor, error) {
+func (s *pgMonitorStore) Update(
+	ctx context.Context,
+	m Monitor,
+) (Monitor, error) {
 	params := sqlc.UpdateMonitorByIDParams{
 		ID:       dbUUID(m.ID),
 		IsActive: m.IsActive,
@@ -103,7 +110,10 @@ type pgScopedMonitorStore struct {
 	queries *sqlc.Queries
 }
 
-func NewScopedMonitorStore(userID uuid.UUID, q *sqlc.Queries) *pgScopedMonitorStore {
+func NewScopedMonitorStore(
+	userID uuid.UUID,
+	q *sqlc.Queries,
+) *pgScopedMonitorStore {
 	return &pgScopedMonitorStore{userID: userID, queries: q}
 }
 
@@ -119,7 +129,10 @@ func (s *pgScopedMonitorStore) List(ctx context.Context) ([]Monitor, error) {
 	return monitors, nil
 }
 
-func (s *pgScopedMonitorStore) Get(ctx context.Context, monitorID uuid.UUID) (Monitor, error) {
+func (s *pgScopedMonitorStore) Get(
+	ctx context.Context,
+	monitorID uuid.UUID,
+) (Monitor, error) {
 	args := sqlc.GetByMonitorIDParams{
 		ID:     dbUUID(monitorID),
 		UserID: dbUUID(s.userID),
@@ -134,7 +147,10 @@ func (s *pgScopedMonitorStore) Get(ctx context.Context, monitorID uuid.UUID) (Mo
 	return toDomainMonitor(row), nil
 }
 
-func (s *pgScopedMonitorStore) Create(ctx context.Context, m Monitor) (Monitor, error) {
+func (s *pgScopedMonitorStore) Create(
+	ctx context.Context,
+	m Monitor,
+) (Monitor, error) {
 	params := sqlc.CreateMonitorParams{
 		ID:           dbUUID(m.ID),
 		UserID:       dbUUID(m.UserID),
@@ -154,7 +170,10 @@ func (s *pgScopedMonitorStore) Create(ctx context.Context, m Monitor) (Monitor, 
 	return toDomainMonitor(row), nil
 }
 
-func (s *pgScopedMonitorStore) Update(ctx context.Context, m Monitor) (Monitor, error) {
+func (s *pgScopedMonitorStore) Update(
+	ctx context.Context,
+	m Monitor,
+) (Monitor, error) {
 	params := sqlc.UpdateMonitorParams{
 		ID:       dbUUID(m.ID),
 		UserID:   dbUUID(s.userID),
@@ -174,7 +193,10 @@ func (s *pgScopedMonitorStore) Update(ctx context.Context, m Monitor) (Monitor, 
 	return toDomainMonitor(row), nil
 }
 
-func (s *pgScopedMonitorStore) Delete(ctx context.Context, monitorID uuid.UUID) error {
+func (s *pgScopedMonitorStore) Delete(
+	ctx context.Context,
+	monitorID uuid.UUID,
+) error {
 	result, err := s.queries.DeleteMonitor(ctx, sqlc.DeleteMonitorParams{
 		ID:     dbUUID(monitorID),
 		UserID: dbUUID(s.userID),
@@ -197,7 +219,10 @@ func NewForecastStore(queries *sqlc.Queries) *pgForecastStore {
 	return &pgForecastStore{queries: queries}
 }
 
-func (s *pgForecastStore) ListForMonitor(ctx context.Context, monitorID uuid.UUID) ([]Forecast, error) {
+func (s *pgForecastStore) ListForMonitor(
+	ctx context.Context,
+	monitorID uuid.UUID,
+) ([]Forecast, error) {
 	rows, err := s.queries.ListForecastsByMonitorID(ctx, dbUUID(monitorID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list forecasts: %w", err)
@@ -209,7 +234,11 @@ func (s *pgForecastStore) ListForMonitor(ctx context.Context, monitorID uuid.UUI
 	return forecasts, nil
 }
 
-func (s *pgForecastStore) Save(ctx context.Context, monitorID uuid.UUID, forecasts []Forecast) ([]Forecast, error) {
+func (s *pgForecastStore) Save(
+	ctx context.Context,
+	monitorID uuid.UUID,
+	forecasts []Forecast,
+) ([]Forecast, error) {
 	params := make([]sqlc.UpsertForecastParams, len(forecasts))
 	for i, forecast := range forecasts {
 		params[i] = sqlc.UpsertForecastParams{
@@ -218,7 +247,7 @@ func (s *pgForecastStore) Save(ctx context.Context, monitorID uuid.UUID, forecas
 			DewPoint:         forecast.WeatherVariables.DewPoint,
 			RelativeHumidity: forecast.WeatherVariables.RelativeHumidity,
 			WindSpeed:        forecast.WeatherVariables.WindSpeed,
-			Visibility:       int32(forecast.WeatherVariables.Visibility),
+			Visibility:       forecast.WeatherVariables.Visibility,
 			MonitorID:        dbUUID(monitorID),
 		}
 	}

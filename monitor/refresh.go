@@ -33,7 +33,11 @@ type MonitorStore interface {
 }
 
 type Forecaster interface {
-	Forecast(ctx context.Context, location Location, horizon TimeHorizon) ([]Forecast, error)
+	Forecast(
+		ctx context.Context,
+		location Location,
+		horizon ForecastHorizon,
+	) ([]Forecast, error)
 }
 
 type WeatherVariables struct {
@@ -41,7 +45,7 @@ type WeatherVariables struct {
 	DewPoint         float64 `unit:"°C"`
 	RelativeHumidity float64 `unit:"%"`
 	WindSpeed        float64 `unit:"m/s"`
-	Visibility       int     `unit:"m"`
+	Visibility       float64 `unit:"m"`
 }
 
 func (w WeatherVariables) IsFogLikely() bool {
@@ -58,11 +62,18 @@ type Forecast struct {
 }
 
 type ForecastStore interface {
-	Save(ctx context.Context, monitorID uuid.UUID, forecasts []Forecast) ([]Forecast, error)
+	Save(
+		ctx context.Context,
+		monitorID uuid.UUID,
+		forecasts []Forecast,
+	) ([]Forecast, error)
 }
 
 type NotificationOutbox interface {
-	Create(ctx context.Context, notif notifications.Notification) (notifications.Notification, error)
+	Create(
+		ctx context.Context,
+		notif notifications.Notification,
+	) (notifications.Notification, error)
 }
 
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
@@ -74,7 +85,12 @@ type Refresher struct {
 	runAtom      RunAtomically
 }
 
-func NewRefresher(forecaster Forecaster, monitorStore MonitorStore, runAtom RunAtomically, clock Clock) *Refresher {
+func NewRefresher(
+	forecaster Forecaster,
+	monitorStore MonitorStore,
+	runAtom RunAtomically,
+	clock Clock,
+) *Refresher {
 	return &Refresher{
 		forecaster:   forecaster,
 		monitorStore: monitorStore,
@@ -89,7 +105,10 @@ type AtomicStores struct {
 	Outbox        NotificationOutbox
 }
 
-func (r *Refresher) RefreshAll(ctx context.Context, horizon TimeHorizon) error {
+func (r *Refresher) RefreshAll(
+	ctx context.Context,
+	horizon ForecastHorizon,
+) error {
 	monitors, err := r.monitorStore.ListAllActive(ctx)
 	if err != nil {
 		return fmt.Errorf("list active monitors: %w", err)
@@ -103,7 +122,13 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon TimeHorizon) error {
 			continue
 		}
 		if _, ok := errors.AsType[*Transient](err); ok {
-			slog.Warn("transient error refreshing monitor", "monitor_id", monitors[i].ID, "error", err)
+			slog.Warn(
+				"transient error refreshing monitor",
+				"monitor_id",
+				monitors[i].ID,
+				"error",
+				err,
+			)
 			continue
 		}
 		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
@@ -113,7 +138,11 @@ func (r *Refresher) RefreshAll(ctx context.Context, horizon TimeHorizon) error {
 	return nil
 }
 
-func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon TimeHorizon) error {
+func (r *Refresher) refresh(
+	ctx context.Context,
+	monitor Monitor,
+	horizon ForecastHorizon,
+) error {
 	now := r.clock.Now()
 	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
 
@@ -134,7 +163,13 @@ func (r *Refresher) refresh(ctx context.Context, monitor Monitor, horizon TimeHo
 	})
 }
 
-func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []Forecast, ac AlertChange) error {
+func persist(
+	ctx context.Context,
+	s AtomicStores,
+	monitor Monitor,
+	forecasts []Forecast,
+	ac AlertChange,
+) error {
 	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
 		return fmt.Errorf("save forecasts: %w", err)
 	}
@@ -145,7 +180,15 @@ func persist(ctx context.Context, s AtomicStores, monitor Monitor, forecasts []F
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
-		slog.Info("notification queued", "monitor_id", monitor.ID, "user_id", monitor.UserID, "message", msg)
+		slog.Info(
+			"notification queued",
+			"monitor_id",
+			monitor.ID,
+			"user_id",
+			monitor.UserID,
+			"message",
+			msg,
+		)
 	}
 
 	if ac.NeedsSave() {
