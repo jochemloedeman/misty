@@ -11,6 +11,13 @@ import (
 	"github.com/jochemloedeman/misty/notifications"
 )
 
+const (
+	fogDewPointSpread    = 2.5  // max °C difference between temperature and dew point
+	fogVisibilityLimit   = 1000 // max visibility in meters
+	fogHumidityThreshold = 95   // min relative humidity in percent
+	fogWindSpeedLimit    = 10   // max wind speed in m/s
+)
+
 type Transient struct {
 	Err error
 }
@@ -49,10 +56,10 @@ type WeatherVariables struct {
 }
 
 func (w WeatherVariables) IsFogLikely() bool {
-	dewPointClose := (w.Temperature - w.DewPoint) < 2.5
-	poorVisibility := w.Visibility < 1000
-	highHumidity := w.RelativeHumidity > 95
-	calmWinds := w.WindSpeed < 10
+	dewPointClose := (w.Temperature - w.DewPoint) < fogDewPointSpread
+	poorVisibility := w.Visibility < fogVisibilityLimit
+	highHumidity := w.RelativeHumidity > fogHumidityThreshold
+	calmWinds := w.WindSpeed < fogWindSpeedLimit
 	return dewPointClose && poorVisibility && highHumidity && calmWinds
 }
 

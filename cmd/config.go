@@ -10,6 +10,11 @@ import (
 	"github.com/jochemloedeman/misty/monitor"
 )
 
+const (
+	defaultReconcileMinutes = 15
+	defaultForecastSteps    = 15
+)
+
 type config struct {
 	DatabaseURL       string
 	Port              string
@@ -23,10 +28,10 @@ func loadConfig() (config, error) { //nolint:cyclop
 	cfg := config{
 		Port:              "8080",
 		LogLevel:          slog.LevelInfo,
-		ReconcileInterval: 15 * time.Minute,
+		ReconcileInterval: defaultReconcileMinutes * time.Minute,
 		ForecastHorizon: monitor.ForecastHorizon{
 			Interval: time.Hour,
-			Steps:    15,
+			Steps:    defaultForecastSteps,
 		},
 	}
 

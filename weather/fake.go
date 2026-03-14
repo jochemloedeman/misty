@@ -12,6 +12,24 @@ type Clock interface {
 	Now() time.Time
 }
 
+//nolint:mnd // weather fixture data
+var clearWeather = monitor.WeatherVariables{
+	Temperature:      15,
+	DewPoint:         5,
+	RelativeHumidity: 50,
+	WindSpeed:        5,
+	Visibility:       10000,
+}
+
+//nolint:mnd // weather fixture data
+var foggyWeather = monitor.WeatherVariables{
+	Temperature:      10,
+	DewPoint:         9,
+	RelativeHumidity: 98,
+	WindSpeed:        2,
+	Visibility:       500,
+}
+
 type FakeForecaster struct {
 	clock                 Clock
 	chanceOfFog           float64
@@ -31,27 +49,15 @@ func NewFakeForecaster(
 
 func noFogForecast(ts time.Time) monitor.Forecast {
 	return monitor.Forecast{
-		Time: ts,
-		WeatherVariables: monitor.WeatherVariables{
-			Temperature:      15,
-			DewPoint:         5,
-			RelativeHumidity: 50,
-			WindSpeed:        5,
-			Visibility:       10000,
-		},
+		Time:             ts,
+		WeatherVariables: clearWeather,
 	}
 }
 
 func fogForecast(ts time.Time) monitor.Forecast {
 	return monitor.Forecast{
-		Time: ts,
-		WeatherVariables: monitor.WeatherVariables{
-			Temperature:      10,
-			DewPoint:         9,
-			RelativeHumidity: 98,
-			WindSpeed:        2,
-			Visibility:       500,
-		},
+		Time:             ts,
+		WeatherVariables: foggyWeather,
 	}
 }
 

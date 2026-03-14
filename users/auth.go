@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const tokenByteLength = 32
+
 var (
 	ErrInvalidToken = errors.New("invalid jwt token")
 	ErrExpiredToken = errors.New("jwt token has expired")
@@ -23,7 +25,7 @@ type Claims struct {
 }
 
 func generateSecretToken() (string, error) {
-	b := make([]byte, 32)
+	b := make([]byte, tokenByteLength)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generating secret token: %w", err)
 	}

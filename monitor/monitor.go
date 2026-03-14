@@ -115,27 +115,21 @@ func (m Monitor) ReconcileAlert(
 ) (Monitor, AlertChange) {
 	newAlert := detectFog(forecasts)
 
-	switch {
-	case newAlert == nil && m.ActiveAlert == nil:
+	if newAlert == nil && m.ActiveAlert == nil {
 		return m, AlertChange{}
-	case newAlert == nil && m.ActiveAlert != nil:
+	}
+	if newAlert == nil {
 		m.ActiveAlert = nil
 		return m, AlertChange{Type: Revoked}
-	case newAlert != nil && m.ActiveAlert == nil:
-		m.ActiveAlert = newAlert
-		return m, AlertChange{Type: New, Alert: newAlert}
-	case m.ActiveAlert.End.Before(now):
-		m.ActiveAlert = newAlert
-		return m, AlertChange{Type: New, Alert: newAlert}
-	case newAlert.Start.Equal(m.ActiveAlert.Start) && newAlert.End.Equal(m.ActiveAlert.End):
-		return m, AlertChange{Alert: m.ActiveAlert}
-	case newAlert.Start.After(m.ActiveAlert.End) || newAlert.End.Before(m.ActiveAlert.Start):
-		m.ActiveAlert = newAlert
-		return m, AlertChange{Type: New, Alert: newAlert}
-	default:
-		m.ActiveAlert = newAlert
-		return m, AlertChange{Type: Changed, Alert: newAlert}
 	}
+	if m.ActiveAlert == nil || m.ActiveAlert.End.Before(now) {
+		m.ActiveAlert = newAlert
+		return m, AlertChange{Type: New, Alert: newAlert}
+	}
+
+	// now we know both newAlert and m.ActiveAlert
+	// are non-nil and the active alert is still valid
+	return m.reconcileExistingAlert(newAlert)
 }
 
 func (m Monitor) Deactivate() Monitor {
@@ -153,4 +147,18 @@ func (m Monitor) Activate() Monitor {
 	}
 	m.IsActive = true
 	return m
+}
+
+func (m Monitor) reconcileExistingAlert(newAlert *Alert) (Monitor, AlertChange) {
+	if newAlert.Start.Equal(m.ActiveAlert.Start) &&
+		newAlert.End.Equal(m.ActiveAlert.End) {
+		return m, AlertChange{Alert: m.ActiveAlert}
+	}
+	if newAlert.Start.After(m.ActiveAlert.End) ||
+		newAlert.End.Before(m.ActiveAlert.Start) {
+		m.ActiveAlert = newAlert
+		return m, AlertChange{Type: New, Alert: newAlert}
+	}
+	m.ActiveAlert = newAlert
+	return m, AlertChange{Type: Changed, Alert: newAlert}
 }

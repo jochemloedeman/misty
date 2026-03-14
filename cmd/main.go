@@ -20,6 +20,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	shutdownTimeout          = 10 * time.Second
+	defaultFogChance         = 0.9
+	defaultFogForecastChance = 1.0
+)
+
 func runServer(
 	ctx context.Context,
 	routes *api.API,
@@ -56,7 +62,7 @@ func runServer(
 
 		shutdownCtx, cancel := context.WithTimeout(
 			context.Background(),
-			10*time.Second,
+			shutdownTimeout,
 		)
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
@@ -140,7 +146,7 @@ func main() {
 	queries := sqlc.New(pool)
 	userStore := users.NewUserStore(queries)
 	refresher := monitor.NewRefresher(
-		weather.NewFakeForecaster(clk, 0.9, 1.),
+		weather.NewFakeForecaster(clk, defaultFogChance, defaultFogForecastChance),
 		monitor.NewMonitorStore(queries),
 		monitor.NewRunAtomically(pool),
 		clk,

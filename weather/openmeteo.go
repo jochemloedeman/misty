@@ -16,7 +16,11 @@ import (
 	"github.com/jochemloedeman/misty/monitor"
 )
 
-const openMeteoBaseURL = "https://api.open-meteo.com/v1/forecast"
+const (
+	openMeteoBaseURL    = "https://api.open-meteo.com/v1/forecast"
+	quarterHourInterval = 15 * time.Minute
+	maxErrorBodyBytes   = 512
+)
 
 var variableValues = strings.Join(
 	[]string{
@@ -97,7 +101,7 @@ func (f *Forecaster) Forecast(
 				return resp.Hourly
 			},
 		}
-	case 15 * time.Minute:
+	case quarterHourInterval:
 		intconf = intervalConfig{
 			horizonKey:  "forecast_minutely_15m",
 			variableKey: "minutely_15m",
@@ -131,7 +135,7 @@ func (f *Forecaster) Forecast(
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf(
 			"unexpected status %d: %s",
 			resp.StatusCode,

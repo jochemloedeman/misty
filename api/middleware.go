@@ -13,9 +13,10 @@ import (
 
 const (
 	wwwAuthMissingHeader = `Bearer error="invalid_request", error_description="missing authorization header"`
-	wwwAuthInvalidScheme = `Bearer error="invalid_request", error_description="authorization header must use Bearer scheme"`
-	wwwAuthExpiredToken  = `Bearer error="invalid_token", error_description="token has expired"`
-	wwwAuthInvalidToken  = `Bearer error="invalid_token", error_description="token is invalid"`
+	wwwAuthInvalidScheme = `Bearer error="invalid_request", ` +
+		`error_description="authorization header must use Bearer scheme"`
+	wwwAuthExpiredToken = `Bearer error="invalid_token", error_description="token has expired"`
+	wwwAuthInvalidToken = `Bearer error="invalid_token", error_description="token is invalid"`
 )
 
 func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
@@ -77,9 +78,9 @@ func RequestLogger(next http.Handler) http.Handler {
 			"duration", time.Since(start),
 		}
 		switch {
-		case writer.StatusCode >= 500:
+		case writer.StatusCode >= http.StatusInternalServerError:
 			slog.Error("completed", attrs...)
-		case writer.StatusCode >= 400:
+		case writer.StatusCode >= http.StatusBadRequest:
 			slog.Warn("completed", attrs...)
 		default:
 			slog.Info("completed", attrs...)
