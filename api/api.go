@@ -139,7 +139,6 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func (s *API) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/api"
 	"github.com/jochemloedeman/misty/clock"
+	"github.com/jochemloedeman/misty/db"
 	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/monitor"
 	"github.com/jochemloedeman/misty/notifications"
@@ -128,7 +129,23 @@ func runReconciliation(
 	}
 }
 
+func checkHealth(port string) {
+	resp, err := http.Get("http://localhost:" + port + "/health")
+	if err != nil {
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		os.Exit(1)
+	}
+}
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "health" {
+		checkHealth("8080")
+		return
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		slog.Error("invalid configuration", "error", err)
@@ -154,8 +171,14 @@ func main() {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-
 	defer pool.Close()
+
+	err = db.Migrate(ctx, pool)
+	if err != nil {
+		slog.Error("database migration failed", "error", err)
+		os.Exit(1)
+	}
+
 	slog.Info("database connected")
 
 	clk := clock.NewRealClock()

@@ -17,11 +17,3 @@ db-reset:
 migrate:
     goose -dir {{migration_dir}} postgres "{{db_url}}" up
 
-# Nuke the database and rebuild from scratch
-db-fresh: db-reset db-start
-    #!/usr/bin/env sh
-    echo "Waiting for PostgreSQL to be ready..."
-    until goose -dir {{migration_dir}} postgres "{{db_url}}" status > /dev/null 2>&1; do
-      sleep 0.5
-    done
-    goose -dir {{migration_dir}} postgres "{{db_url}}" up

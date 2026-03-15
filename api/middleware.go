@@ -64,6 +64,11 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		start := time.Now()
 		writer := &StatusResponseWriter{
 			ResponseWriter: w,
