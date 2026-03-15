@@ -1,0 +1,9 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+Caddyfile
+compose.yaml
+CLAUDE.md
+README.md
+justfile

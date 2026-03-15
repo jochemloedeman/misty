@@ -50,6 +50,7 @@ func runServer(
 	mux.Handle("/", api.RequireUser(verifier)(authenticated))
 	mux.HandleFunc("POST /register", routes.Register)
 	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
+	mux.HandleFunc("GET /health", routes.HealthCheck)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

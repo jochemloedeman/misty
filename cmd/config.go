@@ -35,22 +35,48 @@ func loadConfig() (config, error) { //nolint:cyclop
 		},
 	}
 
-	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
-	if cfg.DatabaseURL == "" {
-		return config{}, fmt.Errorf("DATABASE_URL is required")
-	}
-
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
 	}
 
-	signingSecret := os.Getenv("SIGNING_SECRET")
-	if signingSecret == "" {
-		return config{}, fmt.Errorf("SIGNING_SECRET is required")
+	postgresPasswordFile := os.Getenv("POSTGRES_PASSWORD_FILE")
+	if postgresPasswordFile == "" {
+		return config{}, fmt.Errorf("POSTGRES_PASSWORD_FILE is required")
+	}
+	postgresPassword, err := os.ReadFile(postgresPasswordFile)
+	if err != nil {
+		return config{}, fmt.Errorf("failed to read postgres password from file: %w", err)
+	}
+
+	postgresUser := os.Getenv("POSTGRES_USER")
+	if postgresUser == "" {
+		return config{}, fmt.Errorf("POSTGRES_USER is required")
+	}
+
+	cfg.DatabaseURL = fmt.Sprintf(
+		"postgresql://%s:%s@db:5432/postgres",
+		postgresUser,
+		postgresPassword,
+	)
+
+	signingSecretFile := os.Getenv("SIGNING_SECRET_FILE")
+	if signingSecretFile == "" {
+		return config{}, fmt.Errorf("SIGNING_SECRET_FILE is required")
+	}
+	signingSecret, err := os.ReadFile(signingSecretFile)
+	if err != nil {
+		return config{}, fmt.Errorf("failed to read signing secret from file: %w", err)
 	}
 	cfg.SigningSecrets = append(cfg.SigningSecrets, []byte(signingSecret))
-	if prev := os.Getenv("SIGNING_SECRET_PREVIOUS"); prev != "" {
-		cfg.SigningSecrets = append(cfg.SigningSecrets, []byte(prev))
+
+	if prev := os.Getenv("SIGNING_SECRET_PREVIOUS_FILE"); prev != "" {
+		prevSecret, err := os.ReadFile(prev)
+		if err != nil {
+			return config{}, fmt.Errorf("failed to read previous signing secret from file: %w", err)
+		}
+		if len(prevSecret) != 0 {
+			cfg.SigningSecrets = append(cfg.SigningSecrets, []byte(prevSecret))
+		}
 	}
 
 	if v := os.Getenv("LOG_LEVEL"); v != "" {
