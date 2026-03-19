@@ -1,4 +1,4 @@
-package notifications
+package notification
 
 import (
 	"time"
@@ -13,7 +13,7 @@ type Notification struct {
 	SentAt      time.Time
 }
 
-func NewNotification(recipientID uuid.UUID, message string) Notification {
+func New(recipientID uuid.UUID, message string) Notification {
 	return Notification{
 		ID:          uuid.New(),
 		RecipientID: recipientID,

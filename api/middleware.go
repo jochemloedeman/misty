@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jochemloedeman/misty/users"
+	"github.com/google/uuid"
+	"github.com/jochemloedeman/misty/auth"
 )
 
 const (
@@ -18,6 +19,20 @@ const (
 	wwwAuthExpiredToken = `Bearer error="invalid_token", error_description="token has expired"`
 	wwwAuthInvalidToken = `Bearer error="invalid_token", error_description="token is invalid"`
 )
+
+type DevVerifier struct {
+	devUser uuid.UUID
+}
+
+func NewDevVerifier(devUser uuid.UUID) *DevVerifier {
+	return &DevVerifier{devUser: devUser}
+}
+
+func (v *DevVerifier) Verify(token string) (*auth.Claims, error) {
+	return &auth.Claims{
+		UserID: v.devUser,
+	}, nil
+}
 
 func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -41,7 +56,7 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 
 			claims, err := verifier.Verify(token)
 			if err != nil {
-				if errors.Is(err, users.ErrExpiredToken) {
+				if errors.Is(err, auth.ErrExpiredToken) {
 					writeError(w, http.StatusUnauthorized,
 						withHeader("WWW-Authenticate", wwwAuthExpiredToken),
 						withMessage("token has expired"),

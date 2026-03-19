@@ -11,20 +11,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/api"
+	"github.com/jochemloedeman/misty/auth"
 	"github.com/jochemloedeman/misty/clock"
 	"github.com/jochemloedeman/misty/db"
 	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/monitor"
-	"github.com/jochemloedeman/misty/notifications"
-	"github.com/jochemloedeman/misty/users"
+	"github.com/jochemloedeman/misty/notification"
+	"github.com/jochemloedeman/misty/user"
 	"github.com/jochemloedeman/misty/weather"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	shutdownTimeout          = 10 * time.Second
-	defaultFogChance         = 0.9
-	defaultFogForecastChance = 1.0
+	shutdownTimeout = 10 * time.Second
 )
 
 func runServer(
@@ -83,7 +82,7 @@ func runServer(
 func doReconciliation(
 	ctx context.Context,
 	refresher *monitor.Refresher,
-	notifier *notifications.Notifier,
+	notifier *notification.Notifier,
 	horizon monitor.ForecastHorizon,
 ) error {
 	slog.Debug("starting reconciliation")
@@ -105,7 +104,7 @@ func doReconciliation(
 func runReconciliation(
 	ctx context.Context,
 	refresher *monitor.Refresher,
-	notifier *notifications.Notifier,
+	notifier *notification.Notifier,
 	interval time.Duration,
 	horizon monitor.ForecastHorizon,
 	clock clock.RealClock,
@@ -184,17 +183,16 @@ func main() {
 	clk := clock.NewRealClock()
 
 	queries := sqlc.New(pool)
-	userStore := users.NewUserStore(queries)
+	userStore := user.NewStore(queries)
 
 	refresher := monitor.NewRefresher(
-		// weather.NewFakeForecaster(clk, defaultFogChance, defaultFogForecastChance),
 		weather.NewForecaster(&http.Client{}),
 		monitor.NewMonitorStore(queries),
 		monitor.NewRunAtomically(pool),
 		clk,
 	)
 
-	keyRing, err := users.NewKeyRing(cfg.SigningSecrets, clk.Now)
+	keyRing, err := auth.NewKeyRing(cfg.SigningSecrets, clk.Now)
 	if err != nil {
 		slog.Error("invalid key ring configuration", "error", err)
 		os.Exit(1)
@@ -203,9 +201,9 @@ func main() {
 		return monitor.NewScopedMonitorStore(uid, queries)
 	}, keyRing)
 
-	notifier := notifications.NewNotifier(
-		notifications.NewOutbox(queries),
-		func(ctx context.Context, notif notifications.Notification) error {
+	notifier := notification.NewNotifier(
+		notification.NewOutbox(queries),
+		func(ctx context.Context, notif notification.Notification) error {
 			slog.Info(
 				"delivering notification",
 				"notification_id",
@@ -218,9 +216,23 @@ func main() {
 		},
 	)
 
+	var verifier api.TokenVerifier = keyRing
+	if cfg.DevUserID != nil {
+		slog.Warn("authentication disabled — using fixed dev user", "user_id", cfg.DevUserID)
+		verifier = api.NewDevVerifier(*cfg.DevUserID)
+
+		devUser := user.User{ID: *cfg.DevUserID}
+		err := userStore.Ensure(ctx, devUser)
+		if err != nil {
+			slog.Error("create dev user", "error", err)
+			os.Exit(1)
+		}
+		userStore.Ensure(ctx, devUser)
+	}
+
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		return runServer(ctx, routes, keyRing, cfg.Port)
+		return runServer(ctx, routes, verifier, cfg.Port)
 	})
 	group.Go(func() error {
 		return runReconciliation(

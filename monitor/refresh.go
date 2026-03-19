@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jochemloedeman/misty/notifications"
+	"github.com/jochemloedeman/misty/notification"
 )
 
 const (
@@ -79,8 +79,8 @@ type ForecastStore interface {
 type NotificationOutbox interface {
 	Create(
 		ctx context.Context,
-		notif notifications.Notification,
-	) (notifications.Notification, error)
+		notif notification.Notification,
+	) (notification.Notification, error)
 }
 
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
@@ -182,7 +182,7 @@ func persist(
 
 	if ac.NeedsNotification() {
 		msg := fogAlertMessage(monitor, ac)
-		notif := notifications.NewNotification(monitor.UserID, msg)
+		notif := notification.New(monitor.UserID, msg)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}

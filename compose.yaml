@@ -1,7 +1,7 @@
 services:
 
   app:
-    image: misty:1.0.0  # Update version on each release
+    build: .
     restart: unless-stopped
     read_only: true
     cap_drop:
@@ -16,6 +16,7 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       SIGNING_SECRET_FILE: /run/secrets/signing_secret
       SIGNING_SECRET_PREVIOUS_FILE: /run/secrets/signing_secret_previous
+      DEV_USER_ID: ${DEV_USER_ID:-}
     secrets:
       - signing_secret
       - signing_secret_previous

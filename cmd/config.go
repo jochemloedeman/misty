@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/monitor"
 )
 
@@ -19,6 +20,7 @@ type config struct {
 	DatabaseURL       string
 	Port              string
 	SigningSecrets    [][]byte
+	DevUserID         *uuid.UUID
 	LogLevel          slog.Level
 	ReconcileInterval time.Duration
 	ForecastHorizon   monitor.ForecastHorizon
@@ -117,6 +119,14 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("invalid FORECAST_STEPS %q: %w", v, err)
 		}
 		cfg.ForecastHorizon.Steps = n
+	}
+
+	if v := os.Getenv("DEV_USER_ID"); v != "" {
+		uid, err := uuid.Parse(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid DEV_USER_ID %q: %w", v, err)
+		}
+		cfg.DevUserID = &uid
 	}
 
 	return cfg, nil

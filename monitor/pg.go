@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/db/sqlc"
-	"github.com/jochemloedeman/misty/notifications"
+	"github.com/jochemloedeman/misty/notification"
 )
 
 func dbTime(ts time.Time) pgtype.Timestamptz {
@@ -277,7 +277,7 @@ func NewRunAtomically(pool *pgxpool.Pool) RunAtomically {
 		s := AtomicStores{
 			MonitorStore:  NewMonitorStore(queries),
 			ForecastStore: NewForecastStore(queries),
-			Outbox:        notifications.NewOutbox(queries),
+			Outbox:        notification.NewOutbox(queries),
 		}
 		if err := fn(s); err != nil {
 			return err

@@ -32,3 +32,9 @@ go.work.sum
 # .vscode/
 
 secrets/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan

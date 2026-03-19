@@ -1,4 +1,4 @@
-package users
+package user
 
 import (
 	"context"
@@ -22,12 +22,12 @@ func dbText(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-type UserStore struct {
+type Store struct {
 	queries *sqlc.Queries
 }
 
-func NewUserStore(q *sqlc.Queries) *UserStore {
-	return &UserStore{queries: q}
+func NewStore(q *sqlc.Queries) *Store {
+	return &Store{queries: q}
 }
 
 func toDomainUser(row sqlc.User) User {
@@ -38,7 +38,7 @@ func toDomainUser(row sqlc.User) User {
 	}
 }
 
-func (s *UserStore) Create(ctx context.Context, user User) (User, error) {
+func (s *Store) Create(ctx context.Context, user User) (User, error) {
 	u := sqlc.CreateUserParams{
 		ID:           dbUUID(user.ID),
 		PushToken:    dbText(user.PushToken),
@@ -51,7 +51,7 @@ func (s *UserStore) Create(ctx context.Context, user User) (User, error) {
 	return toDomainUser(dbUser), nil
 }
 
-func (s *UserStore) Ensure(ctx context.Context, u User) error {
+func (s *Store) Ensure(ctx context.Context, u User) error {
 	if err := s.queries.EnsureUser(ctx, sqlc.EnsureUserParams{
 		ID:           dbUUID(u.ID),
 		PushToken:    dbText(u.PushToken),
@@ -62,7 +62,7 @@ func (s *UserStore) Ensure(ctx context.Context, u User) error {
 	return nil
 }
 
-func (s *UserStore) GetByRefreshToken(
+func (s *Store) GetByRefreshToken(
 	ctx context.Context,
 	plainRefreshToken string,
 ) (User, error) {

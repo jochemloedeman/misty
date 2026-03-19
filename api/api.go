@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jochemloedeman/misty/auth"
 	"github.com/jochemloedeman/misty/monitor"
-	"github.com/jochemloedeman/misty/users"
+	"github.com/jochemloedeman/misty/user"
 )
 
 type contextKey string
@@ -27,15 +28,15 @@ type MonitorStore interface {
 }
 
 type UserStore interface {
-	Create(ctx context.Context, u users.User) (users.User, error)
+	Create(ctx context.Context, u user.User) (user.User, error)
 	GetByRefreshToken(
 		ctx context.Context,
 		refreshToken string,
-	) (users.User, error)
+	) (user.User, error)
 }
 
 type TokenVerifier interface {
-	Verify(token string) (*users.Claims, error)
+	Verify(token string) (*auth.Claims, error)
 }
 
 type TokenIssuer interface {
@@ -325,7 +326,7 @@ func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, plainRefreshToken, err := users.NewUser(p.PushToken)
+	u, plainRefreshToken, err := user.New(p.PushToken)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError)
 		return
@@ -369,9 +370,9 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.userStore.GetByRefreshToken(r.Context(), p.RefreshToken)
+	u, err := s.userStore.GetByRefreshToken(r.Context(), p.RefreshToken)
 	if err != nil {
-		if errors.Is(err, users.ErrNotFound) {
+		if errors.Is(err, user.ErrNotFound) {
 			writeError(
 				w,
 				http.StatusUnauthorized,
@@ -382,7 +383,7 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError)
 		return
 	}
-	accessToken, err := s.issuer.Issue(user.ID)
+	accessToken, err := s.issuer.Issue(u.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError)
 		return

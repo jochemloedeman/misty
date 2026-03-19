@@ -1,9 +1,6 @@
-package users
+package auth
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -11,8 +8,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
-
-const tokenByteLength = 32
 
 var (
 	ErrInvalidToken = errors.New("invalid jwt token")
@@ -22,19 +17,6 @@ var (
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID uuid.UUID `json:"user_id"`
-}
-
-func generateSecretToken() (string, error) {
-	b := make([]byte, tokenByteLength)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating secret token: %w", err)
-	}
-	return hex.EncodeToString(b), nil
-}
-
-func hashToken(token string) string {
-	h := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(h[:])
 }
 
 type KeyRing struct {

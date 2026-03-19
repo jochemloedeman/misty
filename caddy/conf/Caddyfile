@@ -1,3 +1,19 @@
 {$DOMAIN:misty.jochemapps.com} {
     reverse_proxy app:8080
+    
+    rate_limit {
+        zone general {
+            key    {remote_host}
+            events 30
+            window 1m
+        }
+        zone sensitive {
+            match {
+                path /register /token/refresh
+            }
+            key    {remote_host}
+            events 5
+            window 1m
+        }
+    }
 }

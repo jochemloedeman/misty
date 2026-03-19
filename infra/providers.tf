@@ -1,0 +1,3 @@
+provider "hcloud" {}
+
+provider "cloudflare" {}
