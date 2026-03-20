@@ -1,6 +1,7 @@
 terraform {
   required_version = ">= 1.5.7"
 
+  backend "pg" {}
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
@@ -9,6 +10,10 @@ terraform {
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "5.18.0"
+    }
+    tailscale = {
+      source  = "tailscale/tailscale"
+      version = "0.28.0"
     }
   }
 }

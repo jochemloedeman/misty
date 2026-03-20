@@ -1,9 +1,9 @@
 {$DOMAIN:misty.jochemapps.com} {
     reverse_proxy app:8080
-    
+
     rate_limit {
         zone general {
-            key    {remote_host}
+            key    {http.request.header.CF-Connecting-IP}
             events 30
             window 1m
         }
@@ -11,7 +11,7 @@
             match {
                 path /register /token/refresh
             }
-            key    {remote_host}
+            key    {http.request.header.CF-Connecting-IP}
             events 5
             window 1m
         }

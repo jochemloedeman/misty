@@ -85,7 +85,6 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "80:80"
       - "443:443"
       - "443:443/udp"
     volumes:

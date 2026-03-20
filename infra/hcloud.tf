@@ -1,14 +1,15 @@
 locals {
   cloudflare_ips = concat(
-    data.cloudflare_ip_ranges.this.ipv4_cidr_blocks,
-    data.cloudflare_ip_ranges.this.ipv6_cidr_blocks,
+    data.cloudflare_ip_ranges.this.ipv4_cidrs,
+    data.cloudflare_ip_ranges.this.ipv6_cidrs,
   )
 }
 
 data "cloudflare_ip_ranges" "this" {}
 
 resource "hcloud_floating_ip" "this" {
-  type = "ipv4"
+  type          = "ipv4"
+  home_location = "fsn1"
 }
 
 resource "hcloud_floating_ip_assignment" "this" {
@@ -18,8 +19,16 @@ resource "hcloud_floating_ip_assignment" "this" {
 
 resource "hcloud_server" "this" {
   name        = "misty"
-  image       = "debian-13"
+  image       = "ubuntu-24.04"
   server_type = "cx23"
+  location    = "fsn1"
+  ssh_keys    = [hcloud_ssh_key.this.id]
+
+  user_data = templatefile("${path.module}/templates/cloud-init.yml.tftpl", {
+    floating_ip       = hcloud_floating_ip.this.ip_address
+    tailscale_authkey = tailscale_tailnet_key.this.key
+  })
+
   public_net {
     ipv4_enabled = true
     ipv6_enabled = true
@@ -41,14 +50,6 @@ resource "hcloud_firewall" "this" {
     protocol    = "tcp"
     port        = "443"
     source_ips  = local.cloudflare_ips
-  }
-
-  rule {
-    description = "Allow SSH from trusted IPs"
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "22"
-    source_ips  = var.ssh_allowed_ips
   }
 
   rule {

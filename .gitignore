@@ -38,3 +38,5 @@ secrets/
 *.tfstate
 *.tfstate.backup
 *.tfplan
+
+dist/

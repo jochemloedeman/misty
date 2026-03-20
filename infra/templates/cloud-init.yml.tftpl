@@ -1,0 +1,49 @@
+#cloud-config
+users:
+  - name: jochem
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+  - name: deploy
+    shell: /bin/bash
+    sudo: false
+disable_root: true
+write_files:
+  - path: /etc/netplan/60-floating-ip.yaml
+    permissions: '0600'
+    content: |
+      network:
+        version: 2
+        ethernets:
+          eth0:
+            addresses:
+              - ${floating_ip}/32
+  - path: /etc/sysctl.d/99-tailscale.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+  - path: /etc/apt/sources.list.d/docker.sources
+    permissions: '0644'
+    content: |
+      Types: deb
+      URIs: https://download.docker.com/linux/ubuntu
+      Suites: noble
+      Components: stable
+      Signed-By: /etc/apt/keyrings/docker.asc
+runcmd:
+  - netplan apply
+
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  - usermod -aG docker deploy
+  - usermod -aG docker jochem
+
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - sysctl -p /etc/sysctl.d/99-tailscale.conf
+  - tailscale up --auth-key=${tailscale_authkey}
+  - tailscale set --ssh
