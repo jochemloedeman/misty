@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
 	"os"
@@ -49,6 +50,7 @@ func loadConfig() (config, error) { //nolint:cyclop
 	if err != nil {
 		return config{}, fmt.Errorf("failed to read postgres password from file: %w", err)
 	}
+	postgresPassword = bytes.TrimSpace(postgresPassword)
 
 	postgresUser := os.Getenv("POSTGRES_USER")
 	if postgresUser == "" {
@@ -69,15 +71,16 @@ func loadConfig() (config, error) { //nolint:cyclop
 	if err != nil {
 		return config{}, fmt.Errorf("failed to read signing secret from file: %w", err)
 	}
-	cfg.SigningSecrets = append(cfg.SigningSecrets, []byte(signingSecret))
+	cfg.SigningSecrets = append(cfg.SigningSecrets, bytes.TrimSpace(signingSecret))
 
 	if prev := os.Getenv("SIGNING_SECRET_PREVIOUS_FILE"); prev != "" {
 		prevSecret, err := os.ReadFile(prev)
 		if err != nil {
 			return config{}, fmt.Errorf("failed to read previous signing secret from file: %w", err)
 		}
+		prevSecret = bytes.TrimSpace(prevSecret)
 		if len(prevSecret) != 0 {
-			cfg.SigningSecrets = append(cfg.SigningSecrets, []byte(prevSecret))
+			cfg.SigningSecrets = append(cfg.SigningSecrets, prevSecret)
 		}
 	}
 
