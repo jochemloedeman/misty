@@ -52,3 +52,29 @@ resource "cloudflare_ruleset" "waf_managed" {
     }
   }]
 }
+
+resource "cloudflare_ruleset" "rate_limiting" {
+  zone_id = var.cloudflare_zone_id
+  name    = "Rate limiting rules"
+  kind    = "zone"
+  phase   = "http_ratelimit"
+
+  rules = [{
+    ref        = "rate_limit_catch_all"
+    expression = "true"
+    action     = "block"
+    action_parameters = {
+      response = {
+        status_code  = 429
+        content      = "{\"error\": \"Too many requests\"}"
+        content_type = "application/json"
+      }
+    }
+    ratelimit = {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = 10
+      requests_per_period = 8
+      mitigation_timeout  = 10
+    }
+  }]
+}
