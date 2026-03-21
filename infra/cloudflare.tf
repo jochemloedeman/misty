@@ -24,3 +24,31 @@ resource "cloudflare_zone_setting" "min_tls_version" {
   setting_id = "min_tls_version"
   value      = "1.2"
 }
+
+resource "cloudflare_zone_setting" "tls_1_3" {
+  zone_id    = var.cloudflare_zone_id
+  setting_id = "tls_1_3"
+  value      = "on"
+}
+
+resource "cloudflare_zone_setting" "zero_rtt" {
+  zone_id    = var.cloudflare_zone_id
+  setting_id = "0rtt"
+  value      = "on"
+}
+
+resource "cloudflare_ruleset" "waf_managed" {
+  zone_id = var.cloudflare_zone_id
+  name    = "Managed WAF ruleset"
+  kind    = "zone"
+  phase   = "http_request_firewall_managed"
+
+  rules = [{
+    ref        = "execute_cloudflare_managed_ruleset"
+    expression = "true"
+    action     = "execute"
+    action_parameters = {
+      id = "77454fe2d30c4220b5701f6fdfb893ba"
+    }
+  }]
+}

@@ -67,7 +67,7 @@ jobs:
         run: |
           scp -o StrictHostKeyChecking=accept-new \
             compose.yaml compose.prod.yaml \
-            deploy@${{ vars.DEPLOY_HOST }}:~/misty/
+            deploy@${{ vars.DEPLOY_HOST }}:~/opt/
 
       - name: Deploy
         env:
@@ -77,7 +77,7 @@ jobs:
           ssh -o StrictHostKeyChecking=accept-new deploy@"$DEPLOY_HOST" \
             GHCR_TOKEN="$GHCR_TOKEN" bash -s << 'SCRIPT'
           echo "$GHCR_TOKEN" | docker login ghcr.io -u github-actions --password-stdin
-          cd ~/misty
+          cd ~/opt
           docker compose -f compose.yaml -f compose.prod.yaml pull
           docker compose -f compose.yaml -f compose.prod.yaml up -d --remove-orphans
           docker image prune -f
