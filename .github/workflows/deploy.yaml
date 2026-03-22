@@ -63,11 +63,7 @@ jobs:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
           tags: tag:ci
-
-      - name: Debug Tailscale                                                                            
-        run: |                                                                                           
-          tailscale status              
-          tailscale ping -c 1 ${{ vars.DEPLOY_HOST }} 
+          ping: ${{ vars.DEPLOY_HOST }}
 
       - name: Copy compose files to server
         run: |
