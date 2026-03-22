@@ -24,6 +24,7 @@ import (
 
 const (
 	shutdownTimeout = 10 * time.Second
+	maxBodySize     = 4 << 10
 )
 
 func runServer(
@@ -53,8 +54,11 @@ func runServer(
 	mux.HandleFunc("GET /health", routes.HealthCheck)
 
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: api.RequestLogger(mux),
+		Addr: ":" + port,
+		Handler: api.Compose(
+			api.RequestLogger,
+			api.MaxBodySize(maxBodySize),
+		)(mux),
 	}
 
 	go func() {

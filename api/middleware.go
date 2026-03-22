@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +33,17 @@ func (v *DevVerifier) Verify(token string) (*auth.Claims, error) {
 	return &auth.Claims{
 		UserID: v.devUser,
 	}, nil
+}
+
+func Compose(
+	middlewares ...func(http.Handler) http.Handler,
+) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		for _, mw := range slices.Backward(middlewares) {
+			next = mw(next)
+		}
+		return next
+	}
 }
 
 func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
@@ -73,6 +85,15 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 				context.WithValue(r.Context(), userIDKey, claims.UserID),
 			)
 			next.ServeHTTP(w, newRequest)
+		})
+	}
+}
+
+func MaxBodySize(n int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, n)
+			next.ServeHTTP(w, r)
 		})
 	}
 }
