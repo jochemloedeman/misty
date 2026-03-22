@@ -79,8 +79,9 @@ jobs:
           tailscale ssh deploy@"$DEPLOY_HOST" \
             GHCR_TOKEN="$GHCR_TOKEN" bash -s << 'SCRIPT'
           echo "$GHCR_TOKEN" | docker login ghcr.io -u github-actions --password-stdin
-          cd ~/opt/misty
+          cd /opt/misty
           docker compose -f compose.yaml -f compose.prod.yaml pull
+          docker logout ghcr.io
           docker compose -f compose.yaml -f compose.prod.yaml up -d --remove-orphans
           docker image prune -f
           SCRIPT
