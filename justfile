@@ -1,19 +1,21 @@
-db_url := "postgres://postgres:password@localhost:5432/postgres"
-migration_dir := "db/migrations"
+compose_dev := "docker compose -f compose.yaml -f compose.dev.yaml"
 
-# Start the PostgreSQL container in the background
-db-start:
-    @docker compose up -d db
+# Start the dev docker compose stack
+[group('dev')]
+dev:
+    {{ compose_dev }} up --build -d
 
-# Stop the PostgreSQL container
-db-stop:
-    @docker compose down
+# Stop the dev docker compose stack
+[group('dev')]
+dev-down:
+    {{ compose_dev }} down
 
-# Delete all data by removing the database volume
-db-reset:
-    @docker compose down -v
+# Stop the dev stack and delete all volumes/data
+[group('dev')]
+dev-refresh:
+    {{ compose_dev }} down -v
 
-# Apply all pending migrations
-migrate:
-    goose -dir {{migration_dir}} postgres "{{db_url}}" up
-
+# Build and push production images
+[group('deploy')]
+build-images:
+    ./scripts/build_images.sh

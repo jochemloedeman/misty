@@ -12,3 +12,7 @@ services:
       - "80:80"
     volumes:
       - ./caddy/conf/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+
+secrets:
+  cloudflare_api_token:
+    file: /dev/null
