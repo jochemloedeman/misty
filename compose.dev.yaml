@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    image: misty-app-dev
+
+  caddy:
+    build: ./caddy
+    image: misty-caddy-dev
+    environment:
+      DOMAIN: localhost
+    ports:
+      - "80:80"
+    volumes:
+      - ./caddy/conf/Caddyfile.dev:/etc/caddy/Caddyfile:ro

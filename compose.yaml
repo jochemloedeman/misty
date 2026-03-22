@@ -1,7 +1,7 @@
 services:
 
   app:
-    build: .
+    image: ghcr.io/jochemloedeman/misty:latest
     restart: unless-stopped
     read_only: true
     cap_drop:
@@ -75,7 +75,7 @@ services:
       - backend
 
   caddy:
-    build: ./caddy
+    image: ghcr.io/jochemloedeman/misty/caddy:latest
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -89,7 +89,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     environment:
-      DOMAIN: ${DOMAIN:-}
+      DOMAIN: ${DOMAIN:-misty.jochemapps.com}
     secrets:
       - cloudflare_api_token
     depends_on:

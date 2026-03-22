@@ -67,7 +67,7 @@ jobs:
 
       - name: Copy compose files to server
         run: |
-          tar cf - compose.yaml compose.prod.yaml | \
+          tar cf - compose.yaml | \
             tailscale ssh deploy@${{ vars.DEPLOY_HOST }} \
             "tar xf - -C /opt/misty/"
 
@@ -80,8 +80,8 @@ jobs:
             GHCR_TOKEN="$GHCR_TOKEN" bash -s << 'SCRIPT'
           echo "$GHCR_TOKEN" | docker login ghcr.io -u github-actions --password-stdin
           cd /opt/misty
-          docker compose -f compose.yaml -f compose.prod.yaml pull
+          docker compose pull
           docker logout ghcr.io
-          docker compose -f compose.yaml -f compose.prod.yaml up -d --remove-orphans
+          docker compose up -d --remove-orphans
           docker image prune -f
           SCRIPT
