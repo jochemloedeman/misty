@@ -66,9 +66,9 @@ jobs:
 
       - name: Copy compose files to server
         run: |
-          tailscale scp \
-            compose.yaml compose.prod.yaml \
-            deploy@${{ vars.DEPLOY_HOST }}:~/opt/misty/
+          tar cf - compose.yaml compose.prod.yaml | \
+            tailscale ssh deploy@${{ vars.DEPLOY_HOST }} \
+            "tar xf - -C ~/opt/misty/"
 
       - name: Deploy
         env:
