@@ -47,3 +47,6 @@ runcmd:
   - sysctl -p /etc/sysctl.d/99-tailscale.conf
   - tailscale up --auth-key=${tailscale_authkey}
   - tailscale set --ssh
+
+  - install -d -o jochem -g jochem /opt/
+  - install -d -o jochem -g jochem /etc/misty/secrets

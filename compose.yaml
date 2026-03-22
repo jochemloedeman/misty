@@ -80,8 +80,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    cap_add:
-      - NET_ADMIN
     security_opt:
       - no-new-privileges:true
     ports:
@@ -92,6 +90,8 @@ services:
       - caddy_config:/config
     environment:
       DOMAIN: ${DOMAIN:-}
+    secrets:
+      - cloudflare_api_token
     depends_on:
       app:
         condition: service_healthy
@@ -119,6 +119,8 @@ networks:
   backend:
 
 secrets:
+  cloudflare_api_token:
+    file: ${SECRETS_DIR:-/etc/misty/secrets}/cloudflare_api_token.txt
   postgres_password:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/postgres_password.txt
   signing_secret:
