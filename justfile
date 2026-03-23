@@ -1,19 +1,19 @@
-compose_dev := "docker compose -f compose.yaml -f compose.dev.yaml"
+compose_local := "docker compose -f compose.yaml -f compose.local.yaml"
 
-# Start the dev docker compose stack
-[group('dev')]
-dev:
-    {{ compose_dev }} up --build -d
+# Start the local docker compose stack
+[group('local')]
+local:
+    {{ compose_local }} up --build -d
 
-# Stop the dev docker compose stack
-[group('dev')]
-dev-down:
-    {{ compose_dev }} down
+# Stop the local docker compose stack
+[group('local')]
+local-down:
+    {{ compose_local }} down
 
-# Stop the dev stack and delete all volumes/data
-[group('dev')]
-dev-refresh:
-    {{ compose_dev }} down -v
+# Stop the local stack and delete all volumes/data
+[group('local')]
+local-refresh:
+    {{ compose_local }} down -v
 
 # Build and push production images
 [group('deploy')]

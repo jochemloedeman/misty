@@ -1,17 +1,17 @@
 services:
   app:
     build: .
-    image: misty-app-dev
+    image: misty-app-local
 
   caddy:
     build: ./caddy
-    image: misty-caddy-dev
+    image: misty-caddy-local
     environment:
       DOMAIN: localhost
     ports:
       - "80:80"
     volumes:
-      - ./caddy/conf/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ./caddy/conf/Caddyfile.local:/etc/caddy/Caddyfile:ro
 
 secrets:
   cloudflare_api_token:
