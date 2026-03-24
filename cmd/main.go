@@ -17,8 +17,11 @@ import (
 	"github.com/jochemloedeman/misty/db/sqlc"
 	"github.com/jochemloedeman/misty/monitor"
 	"github.com/jochemloedeman/misty/notification"
+	"github.com/jochemloedeman/misty/notification/apple"
 	"github.com/jochemloedeman/misty/user"
 	"github.com/jochemloedeman/misty/weather"
+	"github.com/sideshow/apns2"
+	"github.com/sideshow/apns2/token"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -205,19 +208,40 @@ func main() {
 		return monitor.NewScopedMonitorStore(uid, queries)
 	}, keyRing)
 
+	var deliverFn func(context.Context, notification.Notification) error
+	if cfg.APNS != nil {
+		authKey, err := token.AuthKeyFromFile(cfg.APNS.KeyPath)
+		if err != nil {
+			slog.Error("invalid APNs auth key", "error", err)
+			os.Exit(1)
+		}
+		tok := &token.Token{
+			AuthKey: authKey,
+			KeyID:   cfg.APNS.KeyID,
+			TeamID:  cfg.APNS.TeamID,
+		}
+		apnsClient := apns2.NewTokenClient(tok).Production()
+		deliverFn = apple.NewDeliverer(
+			apnsClient,
+			apple.NewPGTokenResolver(queries),
+			cfg.APNS.Topic,
+		)
+		slog.Info("APNs delivery enabled", "topic", cfg.APNS.Topic)
+	} else {
+		slog.Warn("APNs not configured — notifications will be logged only")
+		deliverFn = func(_ context.Context, notif notification.Notification) error {
+			slog.Info("notification delivered (no-op)",
+				"notification_id", notif.ID,
+				"recipient_id", notif.RecipientID,
+			)
+			return nil
+		}
+	}
+
 	notifier := notification.NewNotifier(
 		notification.NewOutbox(queries),
-		func(ctx context.Context, notif notification.Notification) error {
-			slog.Info(
-				"delivering notification",
-				"notification_id",
-				notif.ID,
-				"recipient_id",
-				notif.RecipientID,
-			)
-
-			return nil
-		},
+		deliverFn,
+		clk.Now,
 	)
 
 	var verifier api.TokenVerifier = keyRing

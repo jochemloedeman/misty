@@ -35,3 +35,11 @@ FROM
     users
 WHERE
     refresh_token = sqlc.arg('refresh_token');
+
+-- name: GetPushTokenByUserID :one
+SELECT
+    push_token
+FROM
+    users
+WHERE
+    id = sqlc.arg('id');

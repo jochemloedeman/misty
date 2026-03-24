@@ -82,3 +82,19 @@ func (q *Queries) GetByRefreshToken(ctx context.Context, refreshToken string) (U
 	err := row.Scan(&i.ID, &i.PushToken, &i.RefreshToken)
 	return i, err
 }
+
+const getPushTokenByUserID = `-- name: GetPushTokenByUserID :one
+SELECT
+    push_token
+FROM
+    users
+WHERE
+    id = $1
+`
+
+func (q *Queries) GetPushTokenByUserID(ctx context.Context, id pgtype.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getPushTokenByUserID, id)
+	var push_token pgtype.Text
+	err := row.Scan(&push_token)
+	return push_token, err
+}

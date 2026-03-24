@@ -70,3 +70,14 @@ func (o *pgOutbox) ListUnsent(ctx context.Context) ([]Notification, error) {
 	}
 	return notifs, nil
 }
+
+func (o *pgOutbox) MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time) error {
+	_, err := o.queries.UpdateNotificationSentAt(ctx, sqlc.UpdateNotificationSentAtParams{
+		ID:     dbUUID(id),
+		SentAt: dbTime(sentAt),
+	})
+	if err != nil {
+		return fmt.Errorf("mark notification sent: %w", err)
+	}
+	return nil
+}

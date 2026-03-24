@@ -17,10 +17,15 @@ services:
       SIGNING_SECRET_FILE: /run/secrets/signing_secret
       SIGNING_SECRET_PREVIOUS_FILE: /run/secrets/signing_secret_previous
       DEV_USER_ID: ${DEV_USER_ID:-}
+      APNS_KEY_FILE: /run/secrets/apns_auth_key
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_TOPIC: ${APNS_TOPIC:-}
     secrets:
       - signing_secret
       - signing_secret_previous
       - postgres_password
+      - apns_auth_key
     healthcheck:
       test: ["CMD", "/app", "health"]
       start_period: 3s
@@ -130,3 +135,5 @@ secrets:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/signing_secret.txt
   signing_secret_previous:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/signing_secret_previous.txt
+  apns_auth_key:
+    file: ${SECRETS_DIR:-/etc/misty/secrets}/apns_auth_key.p8

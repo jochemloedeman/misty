@@ -17,6 +17,13 @@ const (
 	defaultForecastSteps    = 15
 )
 
+type apnsConfig struct {
+	KeyPath string
+	KeyID   string
+	TeamID  string
+	Topic   string
+}
+
 type config struct {
 	DatabaseURL       string
 	Port              string
@@ -25,6 +32,7 @@ type config struct {
 	LogLevel          slog.Level
 	ReconcileInterval time.Duration
 	ForecastHorizon   monitor.ForecastHorizon
+	APNS              *apnsConfig
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -122,6 +130,27 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("invalid FORECAST_STEPS %q: %w", v, err)
 		}
 		cfg.ForecastHorizon.Steps = n
+	}
+
+	if v := os.Getenv("APNS_KEY_FILE"); v != "" {
+		keyID := os.Getenv("APNS_KEY_ID")
+		if keyID == "" {
+			return config{}, fmt.Errorf("APNS_KEY_ID is required when APNS_KEY_FILE is set")
+		}
+		teamID := os.Getenv("APNS_TEAM_ID")
+		if teamID == "" {
+			return config{}, fmt.Errorf("APNS_TEAM_ID is required when APNS_KEY_FILE is set")
+		}
+		topic := os.Getenv("APNS_TOPIC")
+		if topic == "" {
+			return config{}, fmt.Errorf("APNS_TOPIC is required when APNS_KEY_FILE is set")
+		}
+		cfg.APNS = &apnsConfig{
+			KeyPath: v,
+			KeyID:   keyID,
+			TeamID:  teamID,
+			Topic:   topic,
+		}
 	}
 
 	if v := os.Getenv("DEV_USER_ID"); v != "" {
