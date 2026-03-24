@@ -6,15 +6,19 @@ terraform {
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "1.60.1"
+      version = "~> 1.60"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "5.18.0"
+      version = "~> 5.18"
     }
     tailscale = {
       source  = "tailscale/tailscale"
-      version = "0.28.0"
+      version = "~> 0.28"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.1"
     }
   }
 }

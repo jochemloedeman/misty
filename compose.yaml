@@ -92,6 +92,7 @@ services:
       DOMAIN: ${DOMAIN:-misty.jochemapps.com}
     secrets:
       - cloudflare_api_token
+      - aop_ca_cert
     depends_on:
       app:
         condition: service_healthy
@@ -121,6 +122,8 @@ networks:
 secrets:
   cloudflare_api_token:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/cloudflare_api_token.txt
+  aop_ca_cert:
+    file: ${SECRETS_DIR:-/etc/misty/secrets}/aop_ca_cert.pem
   postgres_password:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/postgres_password.txt
   signing_secret:

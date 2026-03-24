@@ -15,3 +15,5 @@ services:
 secrets:
   cloudflare_api_token:
     file: /dev/null
+  aop_ca_cert:
+    file: /dev/null

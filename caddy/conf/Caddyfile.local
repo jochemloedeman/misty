@@ -1,8 +1,0 @@
-{$DOMAIN:localhost} {
-    tls internal
-
-    @notapi not path /register /token/refresh /health /monitors /monitors/*
-    respond @notapi 404
-
-    reverse_proxy app:8080
-}

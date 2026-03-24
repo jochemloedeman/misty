@@ -1,6 +1,10 @@
 {$DOMAIN:misty.jochemapps.com} {
     tls {
         dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+        client_auth {
+            mode       require_and_verify
+            trust_pool file /run/secrets/aop_ca_cert
+        }
     }
 
     @notapi not path /register /token/refresh /health /monitors /monitors/*

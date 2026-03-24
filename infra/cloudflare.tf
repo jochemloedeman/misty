@@ -28,13 +28,7 @@ resource "cloudflare_zone_setting" "min_tls_version" {
 resource "cloudflare_zone_setting" "tls_1_3" {
   zone_id    = var.cloudflare_zone_id
   setting_id = "tls_1_3"
-  value      = "on"
-}
-
-resource "cloudflare_zone_setting" "zero_rtt" {
-  zone_id    = var.cloudflare_zone_id
-  setting_id = "0rtt"
-  value      = "on"
+  value      = "zrt"
 }
 
 resource "cloudflare_ruleset" "waf_managed" {
