@@ -86,29 +86,7 @@ func runServer(
 	return nil
 }
 
-func doReconciliation(
-	ctx context.Context,
-	refresher *monitor.Refresher,
-	notifier *notification.Notifier,
-	horizon monitor.ForecastHorizon,
-) error {
-	slog.Debug("starting reconciliation")
-
-err := refresher.RefreshAll(ctx, horizon)
-	if err != nil {
-		return err
-	}
-
-	err = notifier.Notify(ctx)
-	if err != nil {
-		return err
-	}
-
-	slog.Debug("reconciliation complete")
-	return nil
-}
-
-func runReconciliation(
+func runCycle(
 	ctx context.Context,
 	refresher *monitor.Refresher,
 	notifier *notification.Notifier,
@@ -119,24 +97,22 @@ func runReconciliation(
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
 
-	if err := doReconciliation(ctx, refresher, notifier, horizon); err != nil {
-		slog.Error("reconciliation error", "error", err)
-	}
-
 	for {
 		select {
 		case <-ticker.C:
-			if err := doReconciliation(ctx, refresher, notifier, horizon); err != nil {
-				slog.Error("reconciliation error", "error", err)
+			if err := refresher.RefreshAll(ctx, horizon); err != nil {
+				slog.Error("refresh error", "error", err)
 			}
 		case m := <-refresher.RefreshC():
 			if err := refresher.RefreshOne(ctx, m, horizon); err != nil {
 				slog.Error("immediate refresh failed", "monitor_id", m.ID, "error", err)
-			} else if err := notifier.Notify(ctx); err != nil {
-				slog.Error("notify after immediate refresh", "error", err)
 			}
 		case <-ctx.Done():
 			return nil
+		}
+
+		if err := notifier.Notify(ctx); err != nil {
+			slog.Error("notification error", "error", err)
 		}
 	}
 }
@@ -277,7 +253,7 @@ func main() {
 		return runServer(ctx, routes, verifier, cfg.Port)
 	})
 	group.Go(func() error {
-		return runReconciliation(
+		return runCycle(
 			ctx,
 			refresher,
 			notifier,
