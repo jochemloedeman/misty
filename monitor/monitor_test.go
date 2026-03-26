@@ -129,7 +129,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: New,
 				Alert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
@@ -142,7 +142,7 @@ func TestReconcileAlert(t *testing.T) {
 				Location: defaultLocation,
 				ActiveAlert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 			forecasts: []Forecast{
@@ -163,7 +163,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: Unchanged,
 				Alert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
@@ -176,7 +176,7 @@ func TestReconcileAlert(t *testing.T) {
 				Location: defaultLocation,
 				ActiveAlert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 			forecasts: []Forecast{
@@ -197,7 +197,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: Changed,
 				Alert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(2 * time.Hour),
+					End:   defaultTime.Add(3 * time.Hour),
 				},
 			},
 		},
@@ -210,7 +210,7 @@ func TestReconcileAlert(t *testing.T) {
 				Location: defaultLocation,
 				ActiveAlert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 			forecasts: []Forecast{
@@ -293,7 +293,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: New,
 				Alert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
@@ -306,7 +306,7 @@ func TestReconcileAlert(t *testing.T) {
 				Location: defaultLocation,
 				ActiveAlert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 			forecasts: []Forecast{
@@ -323,7 +323,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: New,
 				Alert: &Alert{
 					Start: defaultTime.Add(3 * time.Hour),
-					End:   defaultTime.Add(4 * time.Hour),
+					End:   defaultTime.Add(5 * time.Hour),
 				},
 			},
 		},
@@ -336,7 +336,7 @@ func TestReconcileAlert(t *testing.T) {
 				Location: defaultLocation,
 				ActiveAlert: &Alert{
 					Start: defaultTime.Add(3 * time.Hour),
-					End:   defaultTime.Add(4 * time.Hour),
+					End:   defaultTime.Add(5 * time.Hour),
 				},
 			},
 			forecasts: []Forecast{
@@ -353,7 +353,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: New,
 				Alert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
@@ -397,7 +397,7 @@ func TestReconcileAlert(t *testing.T) {
 				Type: New,
 				Alert: &Alert{
 					Start: defaultTime,
-					End:   defaultTime.Add(1 * time.Hour),
+					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
@@ -408,6 +408,7 @@ func TestReconcileAlert(t *testing.T) {
 			gotMonitor, gotChange := tc.monitor.ReconcileAlert(
 				defaultTime,
 				tc.forecasts,
+				time.Hour,
 			)
 			if diff := cmp.Diff(tc.expected, gotChange); diff != "" {
 				t.Errorf(

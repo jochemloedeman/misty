@@ -87,7 +87,7 @@ func NewMonitor(userID uuid.UUID, location Location) Monitor {
 	}
 }
 
-func detectFog(forecasts []Forecast) *Alert {
+func fogAlert(forecasts []Forecast, interval time.Duration) *Alert {
 	var start, end time.Time
 	var anyFog bool
 	for _, forecast := range forecasts {
@@ -106,14 +106,15 @@ func detectFog(forecasts []Forecast) *Alert {
 	if !anyFog {
 		return nil
 	}
-	return &Alert{Start: start, End: end}
+	return &Alert{Start: start, End: end.Add(interval)}
 }
 
 func (m Monitor) ReconcileAlert(
 	now time.Time,
 	forecasts []Forecast,
+	interval time.Duration,
 ) (Monitor, AlertChange) {
-	newAlert := detectFog(forecasts)
+	newAlert := fogAlert(forecasts, interval)
 
 	if newAlert == nil && m.ActiveAlert == nil {
 		return m, AlertChange{}

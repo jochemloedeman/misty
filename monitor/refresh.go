@@ -183,7 +183,7 @@ func (r *Refresher) refresh(
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	monitor, alertChange := monitor.ReconcileAlert(now, forecasts)
+	monitor, alertChange := monitor.ReconcileAlert(now, forecasts, horizon.Interval)
 
 	slog.Info("alert reconciled",
 		"monitor_id", monitor.ID,
