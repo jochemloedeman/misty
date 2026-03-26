@@ -22,8 +22,8 @@ func NewDeliverer(
 	client *apns2.Client,
 	tokens TokenResolver,
 	topic string,
-) func(context.Context, notification.Notification) error {
-	return func(ctx context.Context, notif notification.Notification) error {
+) func(context.Context, notification.Fog) error {
+	return func(ctx context.Context, notif notification.Fog) error {
 		deviceToken, err := tokens.PushToken(ctx, notif.RecipientID)
 		if err != nil {
 			return fmt.Errorf("resolve push token for %s: %w", notif.RecipientID, err)

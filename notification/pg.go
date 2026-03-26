@@ -21,8 +21,8 @@ func dbUUID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
 }
 
-func toDomainNotification(row sqlc.Notification) Notification {
-	return Notification{
+func toFog(row sqlc.Notification) Fog {
+	return Fog{
 		ID:           uuid.UUID(row.ID.Bytes),
 		RecipientID:  uuid.UUID(row.RecipientID.Bytes),
 		Message:      row.Message,
@@ -44,8 +44,8 @@ func NewOutbox(queries *sqlc.Queries) *pgOutbox {
 
 func (o *pgOutbox) Create(
 	ctx context.Context,
-	notif Notification,
-) (Notification, error) {
+	notif Fog,
+) (Fog, error) {
 	params := sqlc.CreateNotificationParams{
 		ID:           dbUUID(notif.ID),
 		RecipientID:  dbUUID(notif.RecipientID),
@@ -57,22 +57,22 @@ func (o *pgOutbox) Create(
 	}
 	row, err := o.queries.CreateNotification(ctx, params)
 	if err != nil {
-		return Notification{}, fmt.Errorf(
+		return Fog{}, fmt.Errorf(
 			"failed to create notification: %w",
 			err,
 		)
 	}
-	return toDomainNotification(row), nil
+	return toFog(row), nil
 }
 
-func (o *pgOutbox) ListUnsent(ctx context.Context) ([]Notification, error) {
+func (o *pgOutbox) ListUnsent(ctx context.Context) ([]Fog, error) {
 	rows, err := o.queries.ListUnsentNotifications(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list unsent notifications: %w", err)
 	}
-	notifs := make([]Notification, len(rows))
+	notifs := make([]Fog, len(rows))
 	for i, row := range rows {
-		notifs[i] = toDomainNotification(row)
+		notifs[i] = toFog(row)
 	}
 	return notifs, nil
 }

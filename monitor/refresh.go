@@ -86,8 +86,8 @@ type ForecastStore interface {
 type NotificationOutbox interface {
 	Create(
 		ctx context.Context,
-		notif notification.Notification,
-	) (notification.Notification, error)
+		notif notification.Fog,
+	) (notification.Fog, error)
 }
 
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error

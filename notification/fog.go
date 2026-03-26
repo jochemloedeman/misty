@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type Notification struct {
+type Fog struct {
 	ID           uuid.UUID
 	RecipientID  uuid.UUID
 	Message      string
@@ -16,8 +16,8 @@ type Notification struct {
 	SentAt       time.Time
 }
 
-func New(recipientID uuid.UUID, message, locationName string, fogStart, fogEnd time.Time) Notification {
-	return Notification{
+func New(recipientID uuid.UUID, message, locationName string, fogStart, fogEnd time.Time) Fog {
+	return Fog{
 		ID:           uuid.New(),
 		RecipientID:  recipientID,
 		Message:      message,

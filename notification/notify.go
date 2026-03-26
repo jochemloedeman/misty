@@ -11,15 +11,15 @@ import (
 )
 
 type outbox interface {
-	ListUnsent(ctx context.Context) ([]Notification, error)
+	ListUnsent(ctx context.Context) ([]Fog, error)
 	MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time) error
 }
 
-type deliver func(context.Context, Notification) error
+type deliver func(context.Context, Fog) error
 
 type Notifier struct {
 	outbox  outbox
-	deliver func(context.Context, Notification) error
+	deliver func(context.Context, Fog) error
 	now     func() time.Time
 }
 

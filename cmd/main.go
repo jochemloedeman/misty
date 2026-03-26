@@ -190,7 +190,7 @@ func main() {
 		return monitor.NewScopedMonitorStore(uid, queries)
 	}, keyRing, refresher.RequestRefresh)
 
-	var deliverFn func(context.Context, notification.Notification) error
+	var deliverFn func(context.Context, notification.Fog) error
 	if cfg.APNS != nil {
 		authKey, err := token.AuthKeyFromFile(cfg.APNS.KeyPath)
 		if err != nil {
@@ -219,7 +219,7 @@ func main() {
 		)
 	} else {
 		slog.Warn("APNs not configured — notifications will be logged only")
-		deliverFn = func(_ context.Context, notif notification.Notification) error {
+		deliverFn = func(_ context.Context, notif notification.Fog) error {
 			slog.Info("notification delivered (no-op)",
 				"notification_id", notif.ID,
 				"recipient_id", notif.RecipientID,
