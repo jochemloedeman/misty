@@ -94,7 +94,7 @@ func doReconciliation(
 ) error {
 	slog.Debug("starting reconciliation")
 
-	err := refresher.RefreshAll(ctx, horizon)
+err := refresher.RefreshAll(ctx, horizon)
 	if err != nil {
 		return err
 	}
@@ -220,13 +220,21 @@ func main() {
 			KeyID:   cfg.APNS.KeyID,
 			TeamID:  cfg.APNS.TeamID,
 		}
-		apnsClient := apns2.NewTokenClient(tok).Production()
+		apnsClient := apns2.NewTokenClient(tok)
+		if cfg.APNS.Development {
+			apnsClient = apnsClient.Development()
+		} else {
+			apnsClient = apnsClient.Production()
+		}
 		deliverFn = apple.NewDeliverer(
 			apnsClient,
 			apple.NewPGTokenResolver(queries),
 			cfg.APNS.Topic,
 		)
-		slog.Info("APNs delivery enabled", "topic", cfg.APNS.Topic)
+		slog.Info("APNs delivery enabled",
+			"topic", cfg.APNS.Topic,
+			"environment", map[bool]string{true: "development", false: "production"}[cfg.APNS.Development],
+		)
 	} else {
 		slog.Warn("APNs not configured — notifications will be logged only")
 		deliverFn = func(_ context.Context, notif notification.Notification) error {

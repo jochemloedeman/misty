@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -38,12 +39,15 @@ func (n *Notifier) Notify(ctx context.Context) error {
 
 	slog.Debug("delivering notifications", "count", len(notifications))
 
+	var errs []error
 	for _, notif := range notifications {
 		if err := n.deliver(ctx, notif); err != nil {
-			return fmt.Errorf("deliver notification %s: %w", notif.ID, err)
+			errs = append(errs, fmt.Errorf("deliver notification %s: %w", notif.ID, err))
+			continue
 		}
 		if err := n.outbox.MarkSent(ctx, notif.ID, n.now()); err != nil {
-			return fmt.Errorf("mark notification %s as sent: %w", notif.ID, err)
+			errs = append(errs, fmt.Errorf("mark notification %s as sent: %w", notif.ID, err))
+			continue
 		}
 		slog.Info(
 			"notification delivered",
@@ -54,5 +58,5 @@ func (n *Notifier) Notify(ctx context.Context) error {
 		)
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

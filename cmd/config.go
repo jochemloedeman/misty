@@ -18,10 +18,11 @@ const (
 )
 
 type apnsConfig struct {
-	KeyPath string
-	KeyID   string
-	TeamID  string
-	Topic   string
+	KeyPath     string
+	KeyID       string
+	TeamID      string
+	Topic       string
+	Development bool
 }
 
 type config struct {
@@ -146,10 +147,11 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("APNS_TOPIC is required when APNS_KEY_FILE is set")
 		}
 		cfg.APNS = &apnsConfig{
-			KeyPath: v,
-			KeyID:   keyID,
-			TeamID:  teamID,
-			Topic:   topic,
+			KeyPath:     v,
+			KeyID:       keyID,
+			TeamID:      teamID,
+			Topic:       topic,
+			Development: os.Getenv("APNS_DEVELOPMENT") == "true",
 		}
 	}
 

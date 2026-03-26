@@ -4,6 +4,8 @@ services:
     image: misty-app-local
     ports:
       - "8080:8080"
+    environment:
+      - APNS_DEVELOPMENT=true
 
   db:
     ports:
