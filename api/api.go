@@ -84,17 +84,20 @@ type API struct {
 	newMonitorStore func(userID uuid.UUID) MonitorStore
 	userStore       UserStore
 	issuer          TokenIssuer
+	onCreated       func(monitor.Monitor)
 }
 
 func New(
 	userStore UserStore,
 	newMonitorStore func(userID uuid.UUID) MonitorStore,
 	issuer TokenIssuer,
+	onCreated func(monitor.Monitor),
 ) *API {
 	return &API{
 		userStore:       userStore,
 		newMonitorStore: newMonitorStore,
 		issuer:          issuer,
+		onCreated:       onCreated,
 	}
 }
 
@@ -230,6 +233,8 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 
 	res := toMonitorResponse(created)
 	writeJSON(w, http.StatusCreated, res)
+
+	s.onCreated(created)
 }
 
 func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {

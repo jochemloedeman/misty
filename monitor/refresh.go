@@ -90,6 +90,7 @@ type Refresher struct {
 	forecaster   Forecaster
 	monitorStore MonitorStore
 	runAtom      RunAtomically
+	refreshC     chan Monitor
 }
 
 func NewRefresher(
@@ -103,7 +104,26 @@ func NewRefresher(
 		monitorStore: monitorStore,
 		runAtom:      runAtom,
 		clock:        clock,
+		refreshC:     make(chan Monitor, 8),
 	}
+}
+
+
+func (r *Refresher) RefreshC() <-chan Monitor {
+	return r.refreshC
+}
+
+func (r *Refresher) RequestRefresh(m Monitor) {
+	select {
+	case r.refreshC <- m:
+		slog.Debug("immediate refresh requested", "monitor_id", m.ID)
+	default:
+		slog.Warn("immediate refresh dropped, buffer full", "monitor_id", m.ID)
+	}
+}
+
+func (r *Refresher) RefreshOne(ctx context.Context, m Monitor, horizon ForecastHorizon) error {
+	return r.refresh(ctx, m, horizon)
 }
 
 type AtomicStores struct {

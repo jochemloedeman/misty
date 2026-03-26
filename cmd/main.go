@@ -129,6 +129,12 @@ func runReconciliation(
 			if err := doReconciliation(ctx, refresher, notifier, horizon); err != nil {
 				slog.Error("reconciliation error", "error", err)
 			}
+		case m := <-refresher.RefreshC():
+			if err := refresher.RefreshOne(ctx, m, horizon); err != nil {
+				slog.Error("immediate refresh failed", "monitor_id", m.ID, "error", err)
+			} else if err := notifier.Notify(ctx); err != nil {
+				slog.Error("notify after immediate refresh", "error", err)
+			}
 		case <-ctx.Done():
 			return nil
 		}
@@ -206,7 +212,7 @@ func main() {
 	}
 	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
 		return monitor.NewScopedMonitorStore(uid, queries)
-	}, keyRing)
+	}, keyRing, refresher.RequestRefresh)
 
 	var deliverFn func(context.Context, notification.Notification) error
 	if cfg.APNS != nil {
