@@ -23,10 +23,13 @@ func dbUUID(id uuid.UUID) pgtype.UUID {
 
 func toDomainNotification(row sqlc.Notification) Notification {
 	return Notification{
-		ID:          uuid.UUID(row.ID.Bytes),
-		RecipientID: uuid.UUID(row.RecipientID.Bytes),
-		Message:     row.Message,
-		SentAt:      row.SentAt.Time,
+		ID:           uuid.UUID(row.ID.Bytes),
+		RecipientID:  uuid.UUID(row.RecipientID.Bytes),
+		Message:      row.Message,
+		LocationName: row.LocationName,
+		FogStart:     row.FogStart.Time,
+		FogEnd:       row.FogEnd.Time,
+		SentAt:       row.SentAt.Time,
 	}
 }
 
@@ -44,10 +47,13 @@ func (o *pgOutbox) Create(
 	notif Notification,
 ) (Notification, error) {
 	params := sqlc.CreateNotificationParams{
-		ID:          dbUUID(notif.ID),
-		RecipientID: dbUUID(notif.RecipientID),
-		Message:     notif.Message,
-		SentAt:      dbTime(notif.SentAt),
+		ID:           dbUUID(notif.ID),
+		RecipientID:  dbUUID(notif.RecipientID),
+		Message:      notif.Message,
+		LocationName: notif.LocationName,
+		FogStart:     dbTime(notif.FogStart),
+		FogEnd:       dbTime(notif.FogEnd),
+		SentAt:       dbTime(notif.SentAt),
 	}
 	row, err := o.queries.CreateNotification(ctx, params)
 	if err != nil {

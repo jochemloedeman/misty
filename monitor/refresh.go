@@ -208,8 +208,8 @@ func persist(
 	}
 
 	if ac.NeedsNotification() {
-		msg := fogAlertMessage(monitor, ac)
-		notif := notification.New(monitor.UserID, msg)
+		msg := fogAlertMessage(monitor)
+		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, ac.Alert.Start, ac.Alert.End)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
@@ -234,10 +234,6 @@ func persist(
 	return nil
 }
 
-func fogAlertMessage(m Monitor, ac AlertChange) string {
-	return fmt.Sprintf("Fog alert for %s from %s to %s",
-		m.Location.Name,
-		ac.Alert.Start.Format("15:04"),
-		ac.Alert.End.Format("15:04"),
-	)
+func fogAlertMessage(m Monitor) string {
+	return fmt.Sprintf("Fog is forecast for %s", m.Location.Name)
 }

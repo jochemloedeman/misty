@@ -4,6 +4,9 @@ INSERT INTO
         id,
         recipient_id,
         message,
+        location_name,
+        fog_start,
+        fog_end,
         sent_at
     )
 VALUES
@@ -11,15 +14,15 @@ VALUES
         sqlc.arg('id'),
         sqlc.arg('recipient_id'),
         sqlc.arg('message'),
+        sqlc.arg('location_name'),
+        sqlc.arg('fog_start'),
+        sqlc.arg('fog_end'),
         sqlc.arg('sent_at')
     ) RETURNING *;
 
 -- name: ListUnsentNotifications :many
 SELECT
-    id,
-    recipient_id,
-    message,
-    sent_at
+    *
 FROM
     notifications
 WHERE

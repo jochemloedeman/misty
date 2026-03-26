@@ -31,10 +31,13 @@ type Monitor struct {
 }
 
 type Notification struct {
-	ID          pgtype.UUID
-	RecipientID pgtype.UUID
-	Message     string
-	SentAt      pgtype.Timestamptz
+	ID           pgtype.UUID
+	RecipientID  pgtype.UUID
+	Message      string
+	SentAt       pgtype.Timestamptz
+	LocationName string
+	FogStart     pgtype.Timestamptz
+	FogEnd       pgtype.Timestamptz
 }
 
 type User struct {

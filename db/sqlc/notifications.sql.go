@@ -17,6 +17,9 @@ INSERT INTO
         id,
         recipient_id,
         message,
+        location_name,
+        fog_start,
+        fog_end,
         sent_at
     )
 VALUES
@@ -24,15 +27,21 @@ VALUES
         $1,
         $2,
         $3,
-        $4
-    ) RETURNING id, recipient_id, message, sent_at
+        $4,
+        $5,
+        $6,
+        $7
+    ) RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end
 `
 
 type CreateNotificationParams struct {
-	ID          pgtype.UUID
-	RecipientID pgtype.UUID
-	Message     string
-	SentAt      pgtype.Timestamptz
+	ID           pgtype.UUID
+	RecipientID  pgtype.UUID
+	Message      string
+	LocationName string
+	FogStart     pgtype.Timestamptz
+	FogEnd       pgtype.Timestamptz
+	SentAt       pgtype.Timestamptz
 }
 
 func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error) {
@@ -40,6 +49,9 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		arg.ID,
 		arg.RecipientID,
 		arg.Message,
+		arg.LocationName,
+		arg.FogStart,
+		arg.FogEnd,
 		arg.SentAt,
 	)
 	var i Notification
@@ -48,16 +60,16 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		&i.RecipientID,
 		&i.Message,
 		&i.SentAt,
+		&i.LocationName,
+		&i.FogStart,
+		&i.FogEnd,
 	)
 	return i, err
 }
 
 const listUnsentNotifications = `-- name: ListUnsentNotifications :many
 SELECT
-    id,
-    recipient_id,
-    message,
-    sent_at
+    id, recipient_id, message, sent_at, location_name, fog_start, fog_end
 FROM
     notifications
 WHERE
@@ -80,6 +92,9 @@ func (q *Queries) ListUnsentNotifications(ctx context.Context) ([]Notification, 
 			&i.RecipientID,
 			&i.Message,
 			&i.SentAt,
+			&i.LocationName,
+			&i.FogStart,
+			&i.FogEnd,
 		); err != nil {
 			return nil, err
 		}
@@ -97,7 +112,7 @@ UPDATE
 SET
     sent_at = $1
 WHERE
-    id = $2 RETURNING id, recipient_id, message, sent_at
+    id = $2 RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end
 `
 
 type UpdateNotificationSentAtParams struct {
@@ -113,6 +128,9 @@ func (q *Queries) UpdateNotificationSentAt(ctx context.Context, arg UpdateNotifi
 		&i.RecipientID,
 		&i.Message,
 		&i.SentAt,
+		&i.LocationName,
+		&i.FogStart,
+		&i.FogEnd,
 	)
 	return i, err
 }

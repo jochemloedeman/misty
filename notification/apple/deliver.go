@@ -35,7 +35,13 @@ func NewDeliverer(
 			return nil
 		}
 
-		p := payload.NewPayload().Alert(notif.Message).Sound("default")
+		p := payload.NewPayload().
+			Alert(notif.Message).
+			Sound("default").
+			MutableContent().
+			Custom("location_name", notif.LocationName).
+			Custom("fog_start", notif.FogStart.Unix()).
+			Custom("fog_end", notif.FogEnd.Unix())
 
 		resp, err := client.PushWithContext(ctx, &apns2.Notification{
 			DeviceToken: deviceToken,
