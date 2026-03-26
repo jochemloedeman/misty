@@ -17,7 +17,8 @@ INSERT INTO
         dew_point,
         relative_humidity,
         wind_speed,
-        visibility
+        visibility,
+        weather_code
     )
 VALUES
     (
@@ -27,7 +28,8 @@ VALUES
         sqlc.arg('dew_point'),
         sqlc.arg('relative_humidity'),
         sqlc.arg('wind_speed'),
-        sqlc.arg('visibility')
+        sqlc.arg('visibility'),
+        sqlc.arg('weather_code')
     ) ON CONFLICT (forecast_at, monitor_id) DO
 UPDATE
 SET
@@ -35,4 +37,5 @@ SET
     dew_point = EXCLUDED.dew_point,
     relative_humidity = EXCLUDED.relative_humidity,
     wind_speed = EXCLUDED.wind_speed,
-    visibility = EXCLUDED.visibility RETURNING *;
+    visibility = EXCLUDED.visibility,
+    weather_code = EXCLUDED.weather_code RETURNING *;

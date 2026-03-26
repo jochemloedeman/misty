@@ -13,7 +13,7 @@ import (
 
 const listForecastsByMonitorID = `-- name: ListForecastsByMonitorID :many
 SELECT
-    forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility
+    forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility, weather_code
 FROM
     forecasts
 WHERE
@@ -39,6 +39,7 @@ func (q *Queries) ListForecastsByMonitorID(ctx context.Context, monitorID pgtype
 			&i.RelativeHumidity,
 			&i.WindSpeed,
 			&i.Visibility,
+			&i.WeatherCode,
 		); err != nil {
 			return nil, err
 		}
@@ -59,7 +60,8 @@ INSERT INTO
         dew_point,
         relative_humidity,
         wind_speed,
-        visibility
+        visibility,
+        weather_code
     )
 VALUES
     (
@@ -69,7 +71,8 @@ VALUES
         $4,
         $5,
         $6,
-        $7
+        $7,
+        $8
     ) ON CONFLICT (forecast_at, monitor_id) DO
 UPDATE
 SET
@@ -77,7 +80,8 @@ SET
     dew_point = EXCLUDED.dew_point,
     relative_humidity = EXCLUDED.relative_humidity,
     wind_speed = EXCLUDED.wind_speed,
-    visibility = EXCLUDED.visibility RETURNING forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility
+    visibility = EXCLUDED.visibility,
+    weather_code = EXCLUDED.weather_code RETURNING forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility, weather_code
 `
 
 type UpsertForecastParams struct {
@@ -88,6 +92,7 @@ type UpsertForecastParams struct {
 	RelativeHumidity float64
 	WindSpeed        float64
 	Visibility       float64
+	WeatherCode      int32
 }
 
 func (q *Queries) UpsertForecast(ctx context.Context, arg UpsertForecastParams) (Forecast, error) {
@@ -99,6 +104,7 @@ func (q *Queries) UpsertForecast(ctx context.Context, arg UpsertForecastParams) 
 		arg.RelativeHumidity,
 		arg.WindSpeed,
 		arg.Visibility,
+		arg.WeatherCode,
 	)
 	var i Forecast
 	err := row.Scan(
@@ -109,6 +115,7 @@ func (q *Queries) UpsertForecast(ctx context.Context, arg UpsertForecastParams) 
 		&i.RelativeHumidity,
 		&i.WindSpeed,
 		&i.Visibility,
+		&i.WeatherCode,
 	)
 	return i, err
 }

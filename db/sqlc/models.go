@@ -16,6 +16,7 @@ type Forecast struct {
 	RelativeHumidity float64
 	WindSpeed        float64
 	Visibility       float64
+	WeatherCode      int32
 }
 
 type Monitor struct {

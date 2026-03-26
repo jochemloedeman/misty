@@ -25,6 +25,7 @@ var (
 		RelativeHumidity: 50,
 		WindSpeed:        5,
 		Visibility:       10000,
+		WeatherCode:      0,
 	}
 )
 
@@ -34,6 +35,7 @@ var fogVariables = WeatherVariables{
 	RelativeHumidity: 98,
 	WindSpeed:        2,
 	Visibility:       500,
+	WeatherCode:      45,
 }
 
 func TestReconcileAlert(t *testing.T) {
@@ -345,6 +347,50 @@ func TestReconcileAlert(t *testing.T) {
 				{
 					Time:             defaultTime.Add(1 * time.Hour),
 					WeatherVariables: fogVariables,
+				},
+			},
+			expected: AlertChange{
+				Type: New,
+				Alert: &Alert{
+					Start: defaultTime,
+					End:   defaultTime.Add(1 * time.Hour),
+				},
+			},
+		},
+		{
+			name: "fog detected by weather code only",
+			monitor: Monitor{
+				ID:       defaultUUID,
+				UserID:   defaultUUID,
+				IsActive: true,
+				Location: defaultLocation,
+			},
+			forecasts: []Forecast{
+				{
+					Time: defaultTime,
+					WeatherVariables: WeatherVariables{
+						Temperature:      20,
+						DewPoint:         10,
+						RelativeHumidity: 50,
+						WindSpeed:        5,
+						Visibility:       24140,
+						WeatherCode:      45,
+					},
+				},
+				{
+					Time: defaultTime.Add(1 * time.Hour),
+					WeatherVariables: WeatherVariables{
+						Temperature:      20,
+						DewPoint:         10,
+						RelativeHumidity: 50,
+						WindSpeed:        5,
+						Visibility:       24140,
+						WeatherCode:      48,
+					},
+				},
+				{
+					Time:             defaultTime.Add(2 * time.Hour),
+					WeatherVariables: noFogVariables,
 				},
 			},
 			expected: AlertChange{

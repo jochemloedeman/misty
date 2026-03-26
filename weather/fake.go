@@ -19,6 +19,7 @@ var clearWeather = monitor.WeatherVariables{
 	RelativeHumidity: 50,
 	WindSpeed:        5,
 	Visibility:       10000,
+	WeatherCode:      0,
 }
 
 //nolint:mnd // weather fixture data
@@ -28,6 +29,7 @@ var foggyWeather = monitor.WeatherVariables{
 	RelativeHumidity: 98,
 	WindSpeed:        2,
 	Visibility:       500,
+	WeatherCode:      45,
 }
 
 type FakeForecaster struct {

@@ -16,6 +16,9 @@ const (
 	fogVisibilityLimit   = 1000 // max visibility in meters
 	fogHumidityThreshold = 95   // min relative humidity in percent
 	fogWindSpeedLimit    = 10   // max wind speed in m/s
+
+	wmoFog     = 45 // WMO weather code for fog
+	wmoRimeFog = 48 // WMO weather code for depositing rime fog
 )
 
 type Transient struct {
@@ -53,9 +56,13 @@ type WeatherVariables struct {
 	RelativeHumidity float64 `unit:"%"`
 	WindSpeed        float64 `unit:"m/s"`
 	Visibility       float64 `unit:"m"`
+	WeatherCode      int     `unit:"wmo code"`
 }
 
 func (w WeatherVariables) IsFogLikely() bool {
+	if w.WeatherCode == wmoFog || w.WeatherCode == wmoRimeFog {
+		return true
+	}
 	dewPointClose := (w.Temperature - w.DewPoint) < fogDewPointSpread
 	poorVisibility := w.Visibility < fogVisibilityLimit
 	highHumidity := w.RelativeHumidity > fogHumidityThreshold

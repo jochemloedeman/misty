@@ -29,6 +29,7 @@ var variableValues = strings.Join(
 		"relative_humidity_2m",
 		"wind_speed_10m",
 		"visibility",
+		"weather_code",
 	},
 	",",
 )
@@ -49,7 +50,7 @@ func buildURL(
 	q.Set("longitude", strconv.FormatFloat(location.Lon, 'f', 2, 64))
 	q.Set(intconf.horizonKey, strconv.Itoa(horizon.Steps))
 	q.Set(intconf.variableKey, variableValues)
-	q.Set("timezone", "auto")
+	q.Set("timezone", "UTC")
 
 	return openMeteoBaseURL + "?" + q.Encode()
 }
@@ -71,6 +72,7 @@ type variablesResponse struct {
 	RelativeHumidity []float64 `json:"relative_humidity_2m"`
 	WindSpeed        []float64 `json:"wind_speed_10m"`
 	Visibility       []float64 `json:"visibility"`
+	WeatherCode      []float64 `json:"weather_code"`
 }
 
 type response struct {
@@ -155,6 +157,7 @@ func (f *Forecaster) Forecast(
 		len(vars.RelativeHumidity),
 		len(vars.WindSpeed),
 		len(vars.Visibility),
+		len(vars.WeatherCode),
 	) {
 		return nil, errors.New("inconsistent response lengths")
 	}
@@ -173,6 +176,7 @@ func (f *Forecaster) Forecast(
 				RelativeHumidity: vars.RelativeHumidity[i],
 				WindSpeed:        vars.WindSpeed[i],
 				Visibility:       vars.Visibility[i],
+				WeatherCode:      int(vars.WeatherCode[i]),
 			},
 		}
 	}

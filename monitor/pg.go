@@ -57,6 +57,7 @@ func toDomainForecast(row sqlc.Forecast) Forecast {
 			RelativeHumidity: row.RelativeHumidity,
 			WindSpeed:        row.WindSpeed,
 			Visibility:       row.Visibility,
+			WeatherCode:      int(row.WeatherCode),
 		},
 	}
 }
@@ -248,6 +249,7 @@ func (s *pgForecastStore) Save(
 			RelativeHumidity: forecast.WeatherVariables.RelativeHumidity,
 			WindSpeed:        forecast.WeatherVariables.WindSpeed,
 			Visibility:       forecast.WeatherVariables.Visibility,
+			WeatherCode:      int32(forecast.WeatherVariables.WeatherCode),
 			MonitorID:        dbUUID(monitorID),
 		}
 	}
