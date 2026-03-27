@@ -2,13 +2,11 @@
 INSERT INTO
     users (
         id,
-        push_token,
         refresh_token
     )
 VALUES
     (
         sqlc.arg('id'),
-        sqlc.arg('push_token'),
         sqlc.arg('refresh_token')
     ) RETURNING *;
 
@@ -16,13 +14,11 @@ VALUES
 INSERT INTO
     users (
         id,
-        push_token,
         refresh_token
     )
 VALUES
     (
         sqlc.arg('id'),
-        sqlc.arg('push_token'),
         sqlc.arg('refresh_token')
     ) ON CONFLICT (id) DO NOTHING;
 
@@ -43,3 +39,9 @@ FROM
     users
 WHERE
     id = sqlc.arg('id');
+
+-- name: UpdatePushToken :one
+UPDATE users
+SET push_token = sqlc.arg('push_token')
+WHERE id = sqlc.arg('id')
+RETURNING *;

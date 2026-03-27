@@ -15,25 +15,22 @@ const createUser = `-- name: CreateUser :one
 INSERT INTO
     users (
         id,
-        push_token,
         refresh_token
     )
 VALUES
     (
         $1,
-        $2,
-        $3
+        $2
     ) RETURNING id, push_token, refresh_token
 `
 
 type CreateUserParams struct {
 	ID           pgtype.UUID
-	PushToken    pgtype.Text
 	RefreshToken string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.PushToken, arg.RefreshToken)
+	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.RefreshToken)
 	var i User
 	err := row.Scan(&i.ID, &i.PushToken, &i.RefreshToken)
 	return i, err
@@ -43,25 +40,22 @@ const ensureUser = `-- name: EnsureUser :exec
 INSERT INTO
     users (
         id,
-        push_token,
         refresh_token
     )
 VALUES
     (
         $1,
-        $2,
-        $3
+        $2
     ) ON CONFLICT (id) DO NOTHING
 `
 
 type EnsureUserParams struct {
 	ID           pgtype.UUID
-	PushToken    pgtype.Text
 	RefreshToken string
 }
 
 func (q *Queries) EnsureUser(ctx context.Context, arg EnsureUserParams) error {
-	_, err := q.db.Exec(ctx, ensureUser, arg.ID, arg.PushToken, arg.RefreshToken)
+	_, err := q.db.Exec(ctx, ensureUser, arg.ID, arg.RefreshToken)
 	return err
 }
 
@@ -97,4 +91,23 @@ func (q *Queries) GetPushTokenByUserID(ctx context.Context, id pgtype.UUID) (pgt
 	var push_token pgtype.Text
 	err := row.Scan(&push_token)
 	return push_token, err
+}
+
+const updatePushToken = `-- name: UpdatePushToken :one
+UPDATE users
+SET push_token = $1
+WHERE id = $2
+RETURNING id, push_token, refresh_token
+`
+
+type UpdatePushTokenParams struct {
+	PushToken pgtype.Text
+	ID        pgtype.UUID
+}
+
+func (q *Queries) UpdatePushToken(ctx context.Context, arg UpdatePushTokenParams) (User, error) {
+	row := q.db.QueryRow(ctx, updatePushToken, arg.PushToken, arg.ID)
+	var i User
+	err := row.Scan(&i.ID, &i.PushToken, &i.RefreshToken)
+	return i, err
 }

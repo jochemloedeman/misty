@@ -33,14 +33,13 @@ func hashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func New(pushToken string) (User, string, error) {
+func New() (User, string, error) {
 	plainToken, err := generateSecretToken()
 	if err != nil {
 		return User{}, "", err
 	}
 	return User{
 		ID:               uuid.New(),
-		PushToken:        pushToken,
 		RefreshTokenHash: hashToken(plainToken),
 	}, plainToken, nil
 }

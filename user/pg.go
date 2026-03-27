@@ -41,7 +41,6 @@ func toDomainUser(row sqlc.User) User {
 func (s *Store) Create(ctx context.Context, user User) (User, error) {
 	u := sqlc.CreateUserParams{
 		ID:           dbUUID(user.ID),
-		PushToken:    dbText(user.PushToken),
 		RefreshToken: user.RefreshTokenHash,
 	}
 	dbUser, err := s.queries.CreateUser(ctx, u)
@@ -54,12 +53,25 @@ func (s *Store) Create(ctx context.Context, user User) (User, error) {
 func (s *Store) Ensure(ctx context.Context, u User) error {
 	if err := s.queries.EnsureUser(ctx, sqlc.EnsureUserParams{
 		ID:           dbUUID(u.ID),
-		PushToken:    dbText(u.PushToken),
 		RefreshToken: u.RefreshTokenHash,
 	}); err != nil {
 		return fmt.Errorf("ensuring user: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) UpdatePushToken(ctx context.Context, userID uuid.UUID, pushToken string) (User, error) {
+	dbUser, err := s.queries.UpdatePushToken(ctx, sqlc.UpdatePushTokenParams{
+		ID:        dbUUID(userID),
+		PushToken: dbText(pushToken),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, ErrNotFound
+		}
+		return User{}, fmt.Errorf("updating push token: %w", err)
+	}
+	return toDomainUser(dbUser), nil
 }
 
 func (s *Store) GetByRefreshToken(

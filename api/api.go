@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -33,6 +33,7 @@ type UserStore interface {
 		ctx context.Context,
 		refreshToken string,
 	) (user.User, error)
+	UpdatePushToken(ctx context.Context, userID uuid.UUID, pushToken string) (user.User, error)
 }
 
 type TokenVerifier interface {
@@ -315,23 +316,7 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *API) Register(w http.ResponseWriter, r *http.Request) {
-	type params struct {
-		PushToken string `json:"push_token"`
-	}
-	var p params
-	if err := json.NewDecoder(r.Body).
-		Decode(&p); err != nil &&
-		!errors.Is(err, io.EOF) {
-		slog.Debug("failed to decode request body", "error", err)
-		writeError(
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid request body"),
-		)
-		return
-	}
-
-	u, plainRefreshToken, err := user.New(p.PushToken)
+	u, plainRefreshToken, err := user.New()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError)
 		return
@@ -400,4 +385,47 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response{
 		AccessToken: accessToken,
 	})
+}
+
+func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
+	type Params struct {
+		PushToken string `json:"push_token"`
+	}
+	var p Params
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		slog.Debug("decoding push token", "error", err)
+		writeError(
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid request body"),
+		)
+		return
+	}
+	
+	_, err := hex.DecodeString(p.PushToken)
+	if err != nil {
+		slog.Debug("decoding push token hex", "error", err)
+		writeError(
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid push token format"),
+		)
+		return
+	}
+
+	uid := userID(r.Context())
+	updated, err := s.userStore.UpdatePushToken(r.Context(), uid, p.PushToken)
+	if errors.Is(err, user.ErrNotFound) {
+		writeError(w, http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError)
+		return
+	}
+	
+	slog.Info("push token updated", "user_id", updated.ID)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "ok",
+	})	
 }

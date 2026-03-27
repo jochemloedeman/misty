@@ -49,6 +49,7 @@ func runServer(
 		routes.SetMonitorStatus(true),
 	)
 	authenticated.HandleFunc("DELETE /monitors/{id}", routes.DeleteMonitor)
+	authenticated.HandleFunc("PUT /device", routes.UpdatePushToken)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", api.RequireUser(verifier)(authenticated))
