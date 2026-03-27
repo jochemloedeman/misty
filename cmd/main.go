@@ -39,6 +39,7 @@ func runServer(
 	authenticated := http.NewServeMux()
 	authenticated.HandleFunc("GET /monitors", routes.ListMonitors)
 	authenticated.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
+	authenticated.HandleFunc("GET /monitors/{id}/forecasts", routes.ListForecasts)
 	authenticated.HandleFunc("POST /monitors", routes.CreateMonitor)
 	authenticated.HandleFunc(
 		"POST /monitors/{id}/deactivate",
@@ -187,9 +188,10 @@ func main() {
 		slog.Error("invalid key ring configuration", "error", err)
 		os.Exit(1)
 	}
+	forecastStore := monitor.NewForecastStore(queries)
 	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
 		return monitor.NewScopedMonitorStore(uid, queries)
-	}, keyRing, refresher.RequestRefresh)
+	}, forecastStore, keyRing, refresher.RequestRefresh)
 
 	var deliverFn func(context.Context, notification.Fog) error
 	if cfg.APNS != nil {

@@ -220,13 +220,19 @@ func NewForecastStore(queries *sqlc.Queries) *pgForecastStore {
 	return &pgForecastStore{queries: queries}
 }
 
-func (s *pgForecastStore) ListForMonitor(
+func (s *pgForecastStore) ListForMonitorInRange(
 	ctx context.Context,
 	monitorID uuid.UUID,
+	from, until time.Time,
 ) ([]Forecast, error) {
-	rows, err := s.queries.ListForecastsByMonitorID(ctx, dbUUID(monitorID))
+	rows, err := s.queries.ListForecastsByMonitorIDAndHorizon(ctx,
+		sqlc.ListForecastsByMonitorIDAndHorizonParams{
+			MonitorID: dbUUID(monitorID),
+			From:      dbTime(from),
+			Until:     dbTime(until),
+		})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list forecasts: %w", err)
+		return nil, fmt.Errorf("list forecasts in range: %w", err)
 	}
 	forecasts := make([]Forecast, len(rows))
 	for i, row := range rows {

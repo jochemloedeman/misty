@@ -1,10 +1,12 @@
--- name: ListForecastsByMonitorID :many
+-- name: ListForecastsByMonitorIDAndHorizon :many
 SELECT
     *
 FROM
     forecasts
 WHERE
     monitor_id = sqlc.arg('monitor_id')
+    AND forecast_at >= sqlc.arg('from')
+    AND forecast_at <= sqlc.arg('until')
 ORDER BY
     forecast_at;
 

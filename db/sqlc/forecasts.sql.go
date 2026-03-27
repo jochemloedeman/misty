@@ -11,19 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const listForecastsByMonitorID = `-- name: ListForecastsByMonitorID :many
+const listForecastsByMonitorIDAndHorizon = `-- name: ListForecastsByMonitorIDAndHorizon :many
 SELECT
     forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility, weather_code
 FROM
     forecasts
 WHERE
     monitor_id = $1
+    AND forecast_at >= $2
+    AND forecast_at <= $3
 ORDER BY
     forecast_at
 `
 
-func (q *Queries) ListForecastsByMonitorID(ctx context.Context, monitorID pgtype.UUID) ([]Forecast, error) {
-	rows, err := q.db.Query(ctx, listForecastsByMonitorID, monitorID)
+type ListForecastsByMonitorIDAndHorizonParams struct {
+	MonitorID pgtype.UUID
+	From      pgtype.Timestamptz
+	Until     pgtype.Timestamptz
+}
+
+func (q *Queries) ListForecastsByMonitorIDAndHorizon(ctx context.Context, arg ListForecastsByMonitorIDAndHorizonParams) ([]Forecast, error) {
+	rows, err := q.db.Query(ctx, listForecastsByMonitorIDAndHorizon, arg.MonitorID, arg.From, arg.Until)
 	if err != nil {
 		return nil, err
 	}

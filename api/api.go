@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -34,6 +35,14 @@ type UserStore interface {
 		refreshToken string,
 	) (user.User, error)
 	UpdatePushToken(ctx context.Context, userID uuid.UUID, pushToken string) (user.User, error)
+}
+
+type ForecastStore interface {
+	ListForMonitorInRange(
+		ctx context.Context,
+		monitorID uuid.UUID,
+		from, until time.Time,
+	) ([]monitor.Forecast, error)
 }
 
 type TokenVerifier interface {
@@ -81,8 +90,20 @@ func toMonitorResponse(m monitor.Monitor) MonitorResponse {
 	return res
 }
 
+type ForecastResponse struct {
+	ForecastAt       string  `json:"forecast_at"`
+	Temperature      float64 `json:"temperature"`
+	DewPoint         float64 `json:"dew_point"`
+	RelativeHumidity float64 `json:"relative_humidity"`
+	WindSpeed        float64 `json:"wind_speed"`
+	Visibility       float64 `json:"visibility"`
+	WeatherCode      int     `json:"weather_code"`
+	IsFogLikely      bool    `json:"is_fog_likely"`
+}
+
 type API struct {
 	newMonitorStore func(userID uuid.UUID) MonitorStore
+	forecastStore   ForecastStore
 	userStore       UserStore
 	issuer          TokenIssuer
 	onCreated       func(monitor.Monitor)
@@ -91,12 +112,14 @@ type API struct {
 func New(
 	userStore UserStore,
 	newMonitorStore func(userID uuid.UUID) MonitorStore,
+	forecastStore ForecastStore,
 	issuer TokenIssuer,
 	onCreated func(monitor.Monitor),
 ) *API {
 	return &API{
 		userStore:       userStore,
 		newMonitorStore: newMonitorStore,
+		forecastStore:   forecastStore,
 		issuer:          issuer,
 		onCreated:       onCreated,
 	}
@@ -185,6 +208,55 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := toMonitorResponse(m)
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
+	store := s.newMonitorStore(userID(r.Context()))
+
+	mid, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, withMessage("invalid monitor id"))
+		return
+	}
+
+	_, err = store.Get(r.Context(), mid)
+	if errors.Is(err, monitor.ErrNotFound) {
+		writeError(w, http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError)
+		return
+	}
+
+	horizonStr := cmp.Or(r.URL.Query().Get("horizon"), "12h")
+	horizon, err := time.ParseDuration(horizonStr)
+	if err != nil || horizon <= 0 || horizon > 48*time.Hour {
+		writeError(w, http.StatusBadRequest, withMessage("invalid horizon, must be a positive duration up to 48h"))
+		return
+	}
+
+	now := time.Now()
+	forecasts, err := s.forecastStore.ListForMonitorInRange(r.Context(), mid, now, now.Add(horizon))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError)
+		return
+	}
+
+	res := make([]ForecastResponse, len(forecasts))
+	for i, f := range forecasts {
+		res[i] = ForecastResponse{
+			ForecastAt:       f.Time.UTC().Format(time.RFC3339),
+			Temperature:      f.Temperature,
+			DewPoint:         f.DewPoint,
+			RelativeHumidity: f.RelativeHumidity,
+			WindSpeed:        f.WindSpeed,
+			Visibility:       f.Visibility,
+			WeatherCode:      f.WeatherCode,
+			IsFogLikely:      f.IsFogLikely(),
+		}
+	}
 	writeJSON(w, http.StatusOK, res)
 }
 
