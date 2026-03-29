@@ -191,7 +191,7 @@ func main() {
 	forecastStore := monitor.NewForecastStore(queries)
 	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
 		return monitor.NewScopedMonitorStore(uid, queries)
-	}, forecastStore, keyRing, refresher.RequestRefresh)
+	}, forecastStore, keyRing, refresher.RequestRefresh, clk.Now)
 
 	var deliverFn func(context.Context, notification.Fog) error
 	if cfg.APNS != nil {

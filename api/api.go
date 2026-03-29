@@ -107,6 +107,7 @@ type API struct {
 	userStore       UserStore
 	issuer          TokenIssuer
 	onCreated       func(monitor.Monitor)
+	now             func() time.Time
 }
 
 func New(
@@ -115,6 +116,7 @@ func New(
 	forecastStore ForecastStore,
 	issuer TokenIssuer,
 	onCreated func(monitor.Monitor),
+	now func() time.Time,
 ) *API {
 	return &API{
 		userStore:       userStore,
@@ -122,6 +124,7 @@ func New(
 		forecastStore:   forecastStore,
 		issuer:          issuer,
 		onCreated:       onCreated,
+		now:             now,
 	}
 }
 
@@ -237,7 +240,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
+	now := s.now().Truncate(time.Hour)
 	forecasts, err := s.forecastStore.ListForMonitorInRange(r.Context(), mid, now, now.Add(horizon))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError)
