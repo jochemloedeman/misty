@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countMonitorsByUser = `-- name: CountMonitorsByUser :one
+SELECT
+    count(*)
+FROM
+    monitors
+WHERE
+    user_id = $1
+`
+
+func (q *Queries) CountMonitorsByUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countMonitorsByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMonitor = `-- name: CreateMonitor :one
 INSERT INTO
     monitors (
@@ -107,31 +123,6 @@ type GetByMonitorIDParams struct {
 
 func (q *Queries) GetByMonitorID(ctx context.Context, arg GetByMonitorIDParams) (Monitor, error) {
 	row := q.db.QueryRow(ctx, getByMonitorID, arg.ID, arg.UserID)
-	var i Monitor
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.IsActive,
-		&i.LocationName,
-		&i.Latitude,
-		&i.Longitude,
-		&i.AlertStart,
-		&i.AlertEnd,
-	)
-	return i, err
-}
-
-const getMonitor = `-- name: GetMonitor :one
-SELECT
-    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
-FROM
-    monitors
-WHERE
-    id = $1
-`
-
-func (q *Queries) GetMonitor(ctx context.Context, id pgtype.UUID) (Monitor, error) {
-	row := q.db.QueryRow(ctx, getMonitor, id)
 	var i Monitor
 	err := row.Scan(
 		&i.ID,
@@ -253,45 +244,6 @@ func (q *Queries) UpdateMonitor(ctx context.Context, arg UpdateMonitorParams) (M
 		arg.AlertEnd,
 		arg.ID,
 		arg.UserID,
-	)
-	var i Monitor
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.IsActive,
-		&i.LocationName,
-		&i.Latitude,
-		&i.Longitude,
-		&i.AlertStart,
-		&i.AlertEnd,
-	)
-	return i, err
-}
-
-const updateMonitorByID = `-- name: UpdateMonitorByID :one
-UPDATE
-    monitors
-SET
-    is_active = $1,
-    alert_start = $2,
-    alert_end = $3
-WHERE
-    id = $4 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
-`
-
-type UpdateMonitorByIDParams struct {
-	IsActive   bool
-	AlertStart pgtype.Timestamptz
-	AlertEnd   pgtype.Timestamptz
-	ID         pgtype.UUID
-}
-
-func (q *Queries) UpdateMonitorByID(ctx context.Context, arg UpdateMonitorByIDParams) (Monitor, error) {
-	row := q.db.QueryRow(ctx, updateMonitorByID,
-		arg.IsActive,
-		arg.AlertStart,
-		arg.AlertEnd,
-		arg.ID,
 	)
 	var i Monitor
 	err := row.Scan(

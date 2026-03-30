@@ -74,7 +74,7 @@ func NewMonitorStore(q *sqlc.Queries) *pgMonitorStore {
 func (s *pgMonitorStore) ListAllActive(ctx context.Context) ([]Monitor, error) {
 	rows, err := s.queries.ListActiveMonitors(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list monitors: %w", err)
+		return nil, fmt.Errorf("list active monitors: %w", err)
 	}
 	monitors := make([]Monitor, len(rows))
 	for i, row := range rows {
@@ -83,72 +83,37 @@ func (s *pgMonitorStore) ListAllActive(ctx context.Context) ([]Monitor, error) {
 	return monitors, nil
 }
 
-func (s *pgMonitorStore) Update(
-	ctx context.Context,
-	m Monitor,
-) (Monitor, error) {
-	params := sqlc.UpdateMonitorByIDParams{
-		ID:       dbUUID(m.ID),
-		IsActive: m.IsActive,
-	}
-	if m.ActiveAlert != nil {
-		params.AlertStart = dbTime(m.ActiveAlert.Start)
-		params.AlertEnd = dbTime(m.ActiveAlert.End)
-	}
-	row, err := s.queries.UpdateMonitorByID(ctx, params)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Monitor{}, ErrNotFound
-	}
+func (s *pgMonitorStore) ListByUser(ctx context.Context, userID uuid.UUID) ([]Monitor, error) {
+	rows, err := s.queries.ListMonitors(ctx, dbUUID(userID))
 	if err != nil {
-		return Monitor{}, fmt.Errorf("update monitor: %w", err)
+		return nil, fmt.Errorf("list monitors: %w", err)
 	}
-	return toDomainMonitor(row), nil
+	monitors := make([]Monitor, len(rows))
+	for i, row := range rows {
+		monitors[i] = toDomainMonitor(row)
+	}
+	return monitors, nil
 }
 
-// pgScopedMonitorStore implements a user-scoped monitor store backed by PostgreSQL.
-type pgScopedMonitorStore struct {
-	userID  uuid.UUID
-	queries *sqlc.Queries
-}
-
-func NewScopedMonitorStore(
+func (s *pgMonitorStore) Get(
+	ctx context.Context,
 	userID uuid.UUID,
-	q *sqlc.Queries,
-) *pgScopedMonitorStore {
-	return &pgScopedMonitorStore{userID: userID, queries: q}
-}
-
-func (s *pgScopedMonitorStore) List(ctx context.Context) ([]Monitor, error) {
-	rows, err := s.queries.ListMonitors(ctx, dbUUID(s.userID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list monitors: %w", err)
-	}
-	monitors := make([]Monitor, len(rows))
-	for i, row := range rows {
-		monitors[i] = toDomainMonitor(row)
-	}
-	return monitors, nil
-}
-
-func (s *pgScopedMonitorStore) Get(
-	ctx context.Context,
 	monitorID uuid.UUID,
 ) (Monitor, error) {
-	args := sqlc.GetByMonitorIDParams{
+	row, err := s.queries.GetByMonitorID(ctx, sqlc.GetByMonitorIDParams{
 		ID:     dbUUID(monitorID),
-		UserID: dbUUID(s.userID),
-	}
-	row, err := s.queries.GetByMonitorID(ctx, args)
+		UserID: dbUUID(userID),
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Monitor{}, ErrNotFound
 	}
 	if err != nil {
-		return Monitor{}, fmt.Errorf("failed to get monitor: %w", err)
+		return Monitor{}, fmt.Errorf("get monitor: %w", err)
 	}
 	return toDomainMonitor(row), nil
 }
 
-func (s *pgScopedMonitorStore) Create(
+func (s *pgMonitorStore) Create(
 	ctx context.Context,
 	m Monitor,
 ) (Monitor, error) {
@@ -166,18 +131,18 @@ func (s *pgScopedMonitorStore) Create(
 	}
 	row, err := s.queries.CreateMonitor(ctx, params)
 	if err != nil {
-		return Monitor{}, fmt.Errorf("failed to create monitor: %w", err)
+		return Monitor{}, fmt.Errorf("create monitor: %w", err)
 	}
 	return toDomainMonitor(row), nil
 }
 
-func (s *pgScopedMonitorStore) Update(
+func (s *pgMonitorStore) Update(
 	ctx context.Context,
 	m Monitor,
 ) (Monitor, error) {
 	params := sqlc.UpdateMonitorParams{
 		ID:       dbUUID(m.ID),
-		UserID:   dbUUID(s.userID),
+		UserID:   dbUUID(m.UserID),
 		IsActive: m.IsActive,
 	}
 	if m.ActiveAlert != nil {
@@ -194,13 +159,14 @@ func (s *pgScopedMonitorStore) Update(
 	return toDomainMonitor(row), nil
 }
 
-func (s *pgScopedMonitorStore) Delete(
+func (s *pgMonitorStore) Delete(
 	ctx context.Context,
+	userID uuid.UUID,
 	monitorID uuid.UUID,
 ) error {
 	result, err := s.queries.DeleteMonitor(ctx, sqlc.DeleteMonitorParams{
 		ID:     dbUUID(monitorID),
-		UserID: dbUUID(s.userID),
+		UserID: dbUUID(userID),
 	})
 	if err != nil {
 		return fmt.Errorf("delete monitor: %w", err)
@@ -209,6 +175,14 @@ func (s *pgScopedMonitorStore) Delete(
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *pgMonitorStore) CountByUser(ctx context.Context, userID uuid.UUID) (int, error) {
+	count, err := s.queries.CountMonitorsByUser(ctx, dbUUID(userID))
+	if err != nil {
+		return 0, fmt.Errorf("count monitors: %w", err)
+	}
+	return int(count), nil
 }
 
 // pgForecastStore implements ForecastStore backed by PostgreSQL.

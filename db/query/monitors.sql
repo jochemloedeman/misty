@@ -62,23 +62,13 @@ WHERE
     id = sqlc.arg('id')
     AND user_id = sqlc.arg('user_id') RETURNING *;
 
--- name: GetMonitor :one
+-- name: CountMonitorsByUser :one
 SELECT
-    *
+    count(*)
 FROM
     monitors
 WHERE
-    id = sqlc.arg('id');
-
--- name: UpdateMonitorByID :one
-UPDATE
-    monitors
-SET
-    is_active = sqlc.arg('is_active'),
-    alert_start = sqlc.arg('alert_start'),
-    alert_end = sqlc.arg('alert_end')
-WHERE
-    id = sqlc.arg('id') RETURNING *;
+    user_id = sqlc.arg('user_id');
 
 -- name: DeleteMonitor :execresult
 DELETE FROM

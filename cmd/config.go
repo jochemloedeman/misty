@@ -15,6 +15,7 @@ import (
 const (
 	defaultReconcileMinutes = 15
 	defaultForecastSteps    = 15
+	defaultMonitorLimit     = 5
 )
 
 type apnsConfig struct {
@@ -34,6 +35,7 @@ type config struct {
 	ReconcileInterval time.Duration
 	ForecastHorizon   monitor.ForecastHorizon
 	APNS              *apnsConfig
+	MonitorLimit      int
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -45,6 +47,7 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Interval: time.Hour,
 			Steps:    defaultForecastSteps,
 		},
+		MonitorLimit: defaultMonitorLimit,
 	}
 
 	if v := os.Getenv("PORT"); v != "" {
@@ -131,6 +134,17 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("invalid FORECAST_STEPS %q: %w", v, err)
 		}
 		cfg.ForecastHorizon.Steps = n
+	}
+
+	if v := os.Getenv("MONITOR_LIMIT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid MONITOR_LIMIT %q: %w", v, err)
+		}
+		if n <= 0 {
+			return config{}, fmt.Errorf("MONITOR_LIMIT must be positive, got %d", n)
+		}
+		cfg.MonitorLimit = n
 	}
 
 	if v := os.Getenv("APNS_KEY_FILE"); v != "" {

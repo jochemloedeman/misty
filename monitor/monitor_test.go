@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -36,6 +38,71 @@ var fogVariables = WeatherVariables{
 	WindSpeed:        2,
 	Visibility:       500,
 	WeatherCode:      45,
+}
+
+var errStub = errors.New("db down")
+
+type stubCounter struct {
+	count int
+	err   error
+}
+
+func (s stubCounter) CountByUser(context.Context, uuid.UUID) (int, error) {
+	return s.count, s.err
+}
+
+func TestNewMonitor(t *testing.T) {
+	ctx := t.Context()
+	uid := uuid.New()
+	loc := Location{Name: "Test", Lat: 52.0, Lon: 5.0}
+
+	tests := []struct {
+		name    string
+		counter stubCounter
+		limit   int
+		wantErr error
+	}{
+		{
+			name:    "below limit",
+			counter: stubCounter{count: 2},
+			limit:   5,
+		},
+		{
+			name:    "at limit",
+			counter: stubCounter{count: 5},
+			limit:   5,
+			wantErr: ErrLimitReached,
+		},
+		{
+			name:    "above limit",
+			counter: stubCounter{count: 7},
+			limit:   5,
+			wantErr: ErrLimitReached,
+		},
+		{
+			name:    "counter error propagated",
+			counter: stubCounter{err: errStub},
+			limit:   5,
+			wantErr: errStub,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewMonitor(ctx, tt.counter, uid, loc, tt.limit)
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("NewMonitor() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("NewMonitor() unexpected error: %v", err)
+			}
+		})
+	}
 }
 
 func TestReconcileAlert(t *testing.T) {

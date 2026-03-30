@@ -1,13 +1,22 @@
 package monitor
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-var ErrNotFound = errors.New("monitor not found")
+var (
+	ErrNotFound     = errors.New("monitor not found")
+	ErrLimitReached = errors.New("monitor limit reached")
+)
+
+type MonitorCounter interface {
+	CountByUser(ctx context.Context, userID uuid.UUID) (int, error)
+}
 
 type Location struct {
 	Name string
@@ -78,13 +87,26 @@ type Monitor struct {
 	ActiveAlert *Alert
 }
 
-func NewMonitor(userID uuid.UUID, location Location) Monitor {
+func NewMonitor(
+	ctx context.Context,
+	counter MonitorCounter,
+	userID uuid.UUID,
+	location Location,
+	limit int,
+) (Monitor, error) {
+	count, err := counter.CountByUser(ctx, userID)
+	if err != nil {
+		return Monitor{}, fmt.Errorf("counting monitors: %w", err)
+	}
+	if count >= limit {
+		return Monitor{}, ErrLimitReached
+	}
 	return Monitor{
 		ID:       uuid.New(),
 		UserID:   userID,
 		IsActive: true,
 		Location: location,
-	}
+	}, nil
 }
 
 func fogAlert(forecasts []Forecast, interval time.Duration) *Alert {

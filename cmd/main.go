@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/api"
 	"github.com/jochemloedeman/misty/auth"
@@ -175,10 +174,11 @@ func main() {
 
 	queries := sqlc.New(pool)
 	userStore := user.NewStore(queries)
+	monitorStore := monitor.NewMonitorStore(queries)
 
 	refresher := monitor.NewRefresher(
 		weather.NewForecaster(&http.Client{}),
-		monitor.NewMonitorStore(queries),
+		monitorStore,
 		monitor.NewRunAtomically(pool),
 		clk,
 	)
@@ -189,9 +189,15 @@ func main() {
 		os.Exit(1)
 	}
 	forecastStore := monitor.NewForecastStore(queries)
-	routes := api.New(userStore, func(uid uuid.UUID) api.MonitorStore {
-		return monitor.NewScopedMonitorStore(uid, queries)
-	}, forecastStore, keyRing, refresher.RequestRefresh, clk.Now)
+	routes := api.New(
+		userStore,
+		monitorStore,
+		forecastStore,
+		keyRing,
+		refresher.RequestRefresh,
+		clk.Now,
+		cfg.MonitorLimit,
+	)
 
 	var deliverFn func(context.Context, notification.Fog) error
 	if cfg.APNS != nil {
