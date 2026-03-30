@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	defaultReconcileMinutes = 15
-	defaultForecastSteps    = 15
+	defaultReconcileMinutes = 60
+	defaultForecastSteps    = 16
 	defaultMonitorLimit     = 5
 )
 
