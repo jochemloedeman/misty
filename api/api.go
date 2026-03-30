@@ -106,7 +106,7 @@ type API struct {
 	forecastStore   ForecastStore
 	userStore       UserStore
 	issuer          TokenIssuer
-	onCreated       func(monitor.Monitor)
+	onRefreshNeeded func(monitor.Monitor)
 	now             func() time.Time
 }
 
@@ -115,7 +115,7 @@ func New(
 	newMonitorStore func(userID uuid.UUID) MonitorStore,
 	forecastStore ForecastStore,
 	issuer TokenIssuer,
-	onCreated func(monitor.Monitor),
+	onRefreshNeeded func(monitor.Monitor),
 	now func() time.Time,
 ) *API {
 	return &API{
@@ -123,7 +123,7 @@ func New(
 		newMonitorStore: newMonitorStore,
 		forecastStore:   forecastStore,
 		issuer:          issuer,
-		onCreated:       onCreated,
+		onRefreshNeeded: onRefreshNeeded,
 		now:             now,
 	}
 }
@@ -310,7 +310,7 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	res := toMonitorResponse(created)
 	writeJSON(w, http.StatusCreated, res)
 
-	s.onCreated(created)
+	s.onRefreshNeeded(created)
 }
 
 func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
@@ -362,6 +362,10 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 		)
 
 		writeJSON(w, http.StatusOK, toMonitorResponse(updated))
+
+		if activate {
+			s.onRefreshNeeded(updated)
+		}
 	}
 }
 
