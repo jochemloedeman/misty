@@ -67,7 +67,7 @@ resource "cloudflare_ruleset" "rate_limiting" {
     ratelimit = {
       characteristics     = ["ip.src", "cf.colo.id"]
       period              = 10
-      requests_per_period = 8
+      requests_per_period = 20
       mitigation_timeout  = 10
     }
   }]
