@@ -16,7 +16,6 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       SIGNING_SECRET_FILE: /run/secrets/signing_secret
       SIGNING_SECRET_PREVIOUS_FILE: /run/secrets/signing_secret_previous
-      DEV_USER_ID: ${DEV_USER_ID:-}
       APNS_KEY_FILE: /run/secrets/apns_auth_key
       APNS_KEY_ID: ${APNS_KEY_ID:-}
       APNS_TEAM_ID: ${APNS_TEAM_ID:-}
