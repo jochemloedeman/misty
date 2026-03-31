@@ -27,6 +27,7 @@ type MonitorStore interface {
 	Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error
 	CountByUser(ctx context.Context, userID uuid.UUID) (int, error)
+	LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error)
 }
 
 type UserStore interface {
@@ -297,6 +298,10 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	)
 	if errors.Is(err, monitor.ErrLimitReached) {
 		writeError(w, http.StatusUnprocessableEntity, withMessage("monitor limit reached"))
+		return
+	}
+	if errors.Is(err, monitor.ErrDuplicateLocation) {
+		writeError(w, http.StatusConflict, withMessage("a monitor for this location already exists"))
 		return
 	}
 	if err != nil {

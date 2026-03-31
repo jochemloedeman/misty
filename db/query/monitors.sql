@@ -76,3 +76,16 @@ DELETE FROM
 WHERE
     id = sqlc.arg('id')
     AND user_id = sqlc.arg('user_id');
+
+-- name: ExistsMonitorByUserAndLocation :one
+SELECT
+    EXISTS (
+        SELECT
+            1
+        FROM
+            monitors
+        WHERE
+            user_id = sqlc.arg('user_id')
+            AND latitude = sqlc.arg('latitude')
+            AND longitude = sqlc.arg('longitude')
+    );

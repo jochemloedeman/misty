@@ -106,6 +106,33 @@ func (q *Queries) DeleteMonitor(ctx context.Context, arg DeleteMonitorParams) (p
 	return q.db.Exec(ctx, deleteMonitor, arg.ID, arg.UserID)
 }
 
+const existsMonitorByUserAndLocation = `-- name: ExistsMonitorByUserAndLocation :one
+SELECT
+    EXISTS (
+        SELECT
+            1
+        FROM
+            monitors
+        WHERE
+            user_id = $1
+            AND latitude = $2
+            AND longitude = $3
+    )
+`
+
+type ExistsMonitorByUserAndLocationParams struct {
+	UserID    pgtype.UUID
+	Latitude  float64
+	Longitude float64
+}
+
+func (q *Queries) ExistsMonitorByUserAndLocation(ctx context.Context, arg ExistsMonitorByUserAndLocationParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsMonitorByUserAndLocation, arg.UserID, arg.Latitude, arg.Longitude)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getByMonitorID = `-- name: GetByMonitorID :one
 SELECT
     id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end

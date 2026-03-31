@@ -10,12 +10,22 @@ import (
 )
 
 var (
-	ErrNotFound     = errors.New("monitor not found")
-	ErrLimitReached = errors.New("monitor limit reached")
+	ErrNotFound          = errors.New("monitor not found")
+	ErrLimitReached      = errors.New("monitor limit reached")
+	ErrDuplicateLocation = errors.New("duplicate monitor location")
 )
 
 type MonitorCounter interface {
 	CountByUser(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
+type LocationChecker interface {
+	LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error)
+}
+
+type MonitorValidator interface {
+	MonitorCounter
+	LocationChecker
 }
 
 type Location struct {
@@ -89,18 +99,27 @@ type Monitor struct {
 
 func NewMonitor(
 	ctx context.Context,
-	counter MonitorCounter,
+	validator MonitorValidator,
 	userID uuid.UUID,
 	location Location,
 	limit int,
 ) (Monitor, error) {
-	count, err := counter.CountByUser(ctx, userID)
+	count, err := validator.CountByUser(ctx, userID)
 	if err != nil {
 		return Monitor{}, fmt.Errorf("counting monitors: %w", err)
 	}
 	if count >= limit {
 		return Monitor{}, ErrLimitReached
 	}
+
+	exists, err := validator.LocationExistsByUser(ctx, userID, location.Lat, location.Lon)
+	if err != nil {
+		return Monitor{}, fmt.Errorf("checking duplicate location: %w", err)
+	}
+	if exists {
+		return Monitor{}, ErrDuplicateLocation
+	}
+
 	return Monitor{
 		ID:       uuid.New(),
 		UserID:   userID,

@@ -185,6 +185,18 @@ func (s *pgMonitorStore) CountByUser(ctx context.Context, userID uuid.UUID) (int
 	return int(count), nil
 }
 
+func (s *pgMonitorStore) LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error) {
+	exists, err := s.queries.ExistsMonitorByUserAndLocation(ctx, sqlc.ExistsMonitorByUserAndLocationParams{
+		UserID:    dbUUID(userID),
+		Latitude:  lat,
+		Longitude: lon,
+	})
+	if err != nil {
+		return false, fmt.Errorf("check duplicate location: %w", err)
+	}
+	return exists, nil
+}
+
 // pgForecastStore implements ForecastStore backed by PostgreSQL.
 type pgForecastStore struct {
 	queries *sqlc.Queries
