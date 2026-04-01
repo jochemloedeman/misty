@@ -39,10 +39,10 @@ func toDomainMonitor(row sqlc.Monitor) Monitor {
 			Lon:  row.Longitude,
 		},
 	}
-	if row.AlertStart.Valid {
-		m.ActiveAlert = &Alert{
-			Start: row.AlertStart.Time,
-			End:   row.AlertEnd.Time,
+	if row.RiskWindowStart.Valid {
+		m.RiskWindow = &RiskWindow{
+			Start: row.RiskWindowStart.Time,
+			End:   row.RiskWindowEnd.Time,
 		}
 	}
 	return m
@@ -125,9 +125,9 @@ func (s *pgMonitorStore) Create(
 		Latitude:     m.Location.Lat,
 		Longitude:    m.Location.Lon,
 	}
-	if m.ActiveAlert != nil {
-		params.AlertStart = dbTime(m.ActiveAlert.Start)
-		params.AlertEnd = dbTime(m.ActiveAlert.End)
+	if m.RiskWindow != nil {
+		params.RiskWindowStart = dbTime(m.RiskWindow.Start)
+		params.RiskWindowEnd = dbTime(m.RiskWindow.End)
 	}
 	row, err := s.queries.CreateMonitor(ctx, params)
 	if err != nil {
@@ -145,9 +145,9 @@ func (s *pgMonitorStore) Update(
 		UserID:   dbUUID(m.UserID),
 		IsActive: m.IsActive,
 	}
-	if m.ActiveAlert != nil {
-		params.AlertStart = dbTime(m.ActiveAlert.Start)
-		params.AlertEnd = dbTime(m.ActiveAlert.End)
+	if m.RiskWindow != nil {
+		params.RiskWindowStart = dbTime(m.RiskWindow.Start)
+		params.RiskWindowEnd = dbTime(m.RiskWindow.End)
 	}
 	row, err := s.queries.UpdateMonitor(ctx, params)
 	if errors.Is(err, pgx.ErrNoRows) {

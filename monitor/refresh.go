@@ -183,16 +183,16 @@ func (r *Refresher) refresh(
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	monitor, alertChange := monitor.ReconcileAlert(now, forecasts, horizon.Interval)
+	monitor, change := monitor.ReconcileRiskWindow(now, forecasts, horizon.Interval)
 
 	slog.Info("alert reconciled",
 		"monitor_id", monitor.ID,
 		"location", monitor.Location.Name,
-		"change_type", alertChange.Type,
+		"change_type", change.Type,
 	)
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
-		return persist(ctx, s, monitor, forecasts, alertChange)
+		return persist(ctx, s, monitor, forecasts, change)
 	})
 }
 
@@ -201,7 +201,7 @@ func persist(
 	s AtomicStores,
 	monitor Monitor,
 	forecasts []Forecast,
-	ac AlertChange,
+	ac RiskWindowChange,
 ) error {
 	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
 		return fmt.Errorf("save forecasts: %w", err)
@@ -209,7 +209,7 @@ func persist(
 
 	if ac.NeedsNotification() {
 		msg := fogAlertMessage(monitor)
-		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, ac.Alert.Start, ac.Alert.End)
+		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, ac.RiskWindow.Start, ac.RiskWindow.End)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}

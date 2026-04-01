@@ -123,15 +123,15 @@ func TestNewMonitor(t *testing.T) {
 	}
 }
 
-func TestReconcileAlert(t *testing.T) {
+func TestReconcileRiskWindow(t *testing.T) {
 	testCases := []struct {
 		name      string
 		monitor   Monitor
 		forecasts []Forecast
-		expected  AlertChange
+		expected  RiskWindowChange
 	}{
 		{
-			name: "clear - no current alert",
+			name: "clear - no current risk window",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
@@ -152,19 +152,19 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type:  Unchanged,
-				Alert: nil,
+				RiskWindow: nil,
 			},
 		},
 		{
-			name: "clear - existing alert",
+			name: "clear - existing risk window",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(3 * time.Hour),
 				},
@@ -183,13 +183,13 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type:  Revoked,
-				Alert: nil,
+				RiskWindow: nil,
 			},
 		},
 		{
-			name: "fog - no current alert",
+			name: "fog - no current risk window",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
@@ -210,22 +210,22 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: New,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
 		{
-			name: "fog - existing alert - no change",
+			name: "fog - existing risk window - no change",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
@@ -244,22 +244,22 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: Unchanged,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
 		{
-			name: "fog - existing alert - changed",
+			name: "fog - existing risk window - changed",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
@@ -278,22 +278,22 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: fogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: Changed,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(3 * time.Hour),
 				},
 			},
 		},
 		{
-			name: "fog - existing alert - revoked",
+			name: "fog - existing risk window - revoked",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
@@ -312,19 +312,19 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type:  Revoked,
-				Alert: nil,
+				RiskWindow: nil,
 			},
 		},
 		{
-			name: "no fog - existing alert expired",
+			name: "no fog - existing risk window expired",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime.Add(-2 * time.Hour),
 					End:   defaultTime.Add(-1 * time.Hour),
 				},
@@ -343,19 +343,19 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type:  Revoked,
-				Alert: nil,
+				RiskWindow: nil,
 			},
 		},
 		{
-			name: "fog - existing alert expired",
+			name: "fog - existing risk window expired",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime.Add(-2 * time.Hour),
 					End:   defaultTime.Add(-1 * time.Hour),
 				},
@@ -374,22 +374,22 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: New,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
 			},
 		},
 		{
-			name: "fog - existing alert - non-overlapping new alert after",
+			name: "fog - existing risk window - non-overlapping new risk window after",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
@@ -404,22 +404,22 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: fogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: New,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime.Add(3 * time.Hour),
 					End:   defaultTime.Add(5 * time.Hour),
 				},
 			},
 		},
 		{
-			name: "fog - existing alert - non-overlapping new alert before",
+			name: "fog - existing risk window - non-overlapping new risk window before",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
 				IsActive: true,
 				Location: defaultLocation,
-				ActiveAlert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime.Add(3 * time.Hour),
 					End:   defaultTime.Add(5 * time.Hour),
 				},
@@ -434,9 +434,9 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: fogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: New,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
@@ -478,9 +478,9 @@ func TestReconcileAlert(t *testing.T) {
 					WeatherVariables: noFogVariables,
 				},
 			},
-			expected: AlertChange{
+			expected: RiskWindowChange{
 				Type: New,
-				Alert: &Alert{
+				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
 				},
@@ -490,23 +490,23 @@ func TestReconcileAlert(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotMonitor, gotChange := tc.monitor.ReconcileAlert(
+			gotMonitor, gotChange := tc.monitor.ReconcileRiskWindow(
 				defaultTime,
 				tc.forecasts,
 				time.Hour,
 			)
 			if diff := cmp.Diff(tc.expected, gotChange); diff != "" {
 				t.Errorf(
-					"ReconcileAlert() AlertChange mismatch (-want +got):\n%s",
+					"ReconcileRiskWindow() RiskWindowChange mismatch (-want +got):\n%s",
 					diff,
 				)
 			}
 			if diff := cmp.Diff(
-				tc.expected.Alert,
-				gotMonitor.ActiveAlert,
+				tc.expected.RiskWindow,
+				gotMonitor.RiskWindow,
 			); diff != "" {
 				t.Errorf(
-					"ReconcileAlert() Monitor.ActiveAlert mismatch (-want +got):\n%s",
+					"ReconcileRiskWindow() Monitor.RiskWindow mismatch (-want +got):\n%s",
 					diff,
 				)
 			}

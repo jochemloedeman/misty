@@ -7,8 +7,8 @@ INSERT INTO
         location_name,
         latitude,
         longitude,
-        alert_start,
-        alert_end
+        risk_window_start,
+        risk_window_end
     )
 VALUES
     (
@@ -18,8 +18,8 @@ VALUES
         sqlc.arg('location_name'),
         sqlc.arg('latitude'),
         sqlc.arg('longitude'),
-        sqlc.arg('alert_start'),
-        sqlc.arg('alert_end')
+        sqlc.arg('risk_window_start'),
+        sqlc.arg('risk_window_end')
     ) RETURNING *;
 
 -- name: ListMonitors :many
@@ -56,8 +56,8 @@ UPDATE
     monitors
 SET
     is_active = sqlc.arg('is_active'),
-    alert_start = sqlc.arg('alert_start'),
-    alert_end = sqlc.arg('alert_end')
+    risk_window_start = sqlc.arg('risk_window_start'),
+    risk_window_end = sqlc.arg('risk_window_end')
 WHERE
     id = sqlc.arg('id')
     AND user_id = sqlc.arg('user_id') RETURNING *;

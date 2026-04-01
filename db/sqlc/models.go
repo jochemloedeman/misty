@@ -20,14 +20,14 @@ type Forecast struct {
 }
 
 type Monitor struct {
-	ID           pgtype.UUID
-	UserID       pgtype.UUID
-	IsActive     bool
-	LocationName string
-	Latitude     float64
-	Longitude    float64
-	AlertStart   pgtype.Timestamptz
-	AlertEnd     pgtype.Timestamptz
+	ID              pgtype.UUID
+	UserID          pgtype.UUID
+	IsActive        bool
+	LocationName    string
+	Latitude        float64
+	Longitude       float64
+	RiskWindowStart pgtype.Timestamptz
+	RiskWindowEnd   pgtype.Timestamptz
 }
 
 type Notification struct {

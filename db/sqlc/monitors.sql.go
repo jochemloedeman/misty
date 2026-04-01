@@ -37,8 +37,8 @@ INSERT INTO
         location_name,
         latitude,
         longitude,
-        alert_start,
-        alert_end
+        risk_window_start,
+        risk_window_end
     )
 VALUES
     (
@@ -50,18 +50,18 @@ VALUES
         $6,
         $7,
         $8
-    ) RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    ) RETURNING id, user_id, is_active, location_name, latitude, longitude, risk_window_start, risk_window_end
 `
 
 type CreateMonitorParams struct {
-	ID           pgtype.UUID
-	UserID       pgtype.UUID
-	IsActive     bool
-	LocationName string
-	Latitude     float64
-	Longitude    float64
-	AlertStart   pgtype.Timestamptz
-	AlertEnd     pgtype.Timestamptz
+	ID              pgtype.UUID
+	UserID          pgtype.UUID
+	IsActive        bool
+	LocationName    string
+	Latitude        float64
+	Longitude       float64
+	RiskWindowStart pgtype.Timestamptz
+	RiskWindowEnd   pgtype.Timestamptz
 }
 
 func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (Monitor, error) {
@@ -72,8 +72,8 @@ func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (M
 		arg.LocationName,
 		arg.Latitude,
 		arg.Longitude,
-		arg.AlertStart,
-		arg.AlertEnd,
+		arg.RiskWindowStart,
+		arg.RiskWindowEnd,
 	)
 	var i Monitor
 	err := row.Scan(
@@ -83,8 +83,8 @@ func (q *Queries) CreateMonitor(ctx context.Context, arg CreateMonitorParams) (M
 		&i.LocationName,
 		&i.Latitude,
 		&i.Longitude,
-		&i.AlertStart,
-		&i.AlertEnd,
+		&i.RiskWindowStart,
+		&i.RiskWindowEnd,
 	)
 	return i, err
 }
@@ -135,7 +135,7 @@ func (q *Queries) ExistsMonitorByUserAndLocation(ctx context.Context, arg Exists
 
 const getByMonitorID = `-- name: GetByMonitorID :one
 SELECT
-    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    id, user_id, is_active, location_name, latitude, longitude, risk_window_start, risk_window_end
 FROM
     monitors
 WHERE
@@ -158,15 +158,15 @@ func (q *Queries) GetByMonitorID(ctx context.Context, arg GetByMonitorIDParams) 
 		&i.LocationName,
 		&i.Latitude,
 		&i.Longitude,
-		&i.AlertStart,
-		&i.AlertEnd,
+		&i.RiskWindowStart,
+		&i.RiskWindowEnd,
 	)
 	return i, err
 }
 
 const listActiveMonitors = `-- name: ListActiveMonitors :many
 SELECT
-    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    id, user_id, is_active, location_name, latitude, longitude, risk_window_start, risk_window_end
 FROM
     monitors
 WHERE
@@ -191,8 +191,8 @@ func (q *Queries) ListActiveMonitors(ctx context.Context) ([]Monitor, error) {
 			&i.LocationName,
 			&i.Latitude,
 			&i.Longitude,
-			&i.AlertStart,
-			&i.AlertEnd,
+			&i.RiskWindowStart,
+			&i.RiskWindowEnd,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +206,7 @@ func (q *Queries) ListActiveMonitors(ctx context.Context) ([]Monitor, error) {
 
 const listMonitors = `-- name: ListMonitors :many
 SELECT
-    id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    id, user_id, is_active, location_name, latitude, longitude, risk_window_start, risk_window_end
 FROM
     monitors
 WHERE
@@ -231,8 +231,8 @@ func (q *Queries) ListMonitors(ctx context.Context, userID pgtype.UUID) ([]Monit
 			&i.LocationName,
 			&i.Latitude,
 			&i.Longitude,
-			&i.AlertStart,
-			&i.AlertEnd,
+			&i.RiskWindowStart,
+			&i.RiskWindowEnd,
 		); err != nil {
 			return nil, err
 		}
@@ -249,26 +249,26 @@ UPDATE
     monitors
 SET
     is_active = $1,
-    alert_start = $2,
-    alert_end = $3
+    risk_window_start = $2,
+    risk_window_end = $3
 WHERE
     id = $4
-    AND user_id = $5 RETURNING id, user_id, is_active, location_name, latitude, longitude, alert_start, alert_end
+    AND user_id = $5 RETURNING id, user_id, is_active, location_name, latitude, longitude, risk_window_start, risk_window_end
 `
 
 type UpdateMonitorParams struct {
-	IsActive   bool
-	AlertStart pgtype.Timestamptz
-	AlertEnd   pgtype.Timestamptz
-	ID         pgtype.UUID
-	UserID     pgtype.UUID
+	IsActive        bool
+	RiskWindowStart pgtype.Timestamptz
+	RiskWindowEnd   pgtype.Timestamptz
+	ID              pgtype.UUID
+	UserID          pgtype.UUID
 }
 
 func (q *Queries) UpdateMonitor(ctx context.Context, arg UpdateMonitorParams) (Monitor, error) {
 	row := q.db.QueryRow(ctx, updateMonitor,
 		arg.IsActive,
-		arg.AlertStart,
-		arg.AlertEnd,
+		arg.RiskWindowStart,
+		arg.RiskWindowEnd,
 		arg.ID,
 		arg.UserID,
 	)
@@ -280,8 +280,8 @@ func (q *Queries) UpdateMonitor(ctx context.Context, arg UpdateMonitorParams) (M
 		&i.LocationName,
 		&i.Latitude,
 		&i.Longitude,
-		&i.AlertStart,
-		&i.AlertEnd,
+		&i.RiskWindowStart,
+		&i.RiskWindowEnd,
 	)
 	return i, err
 }

@@ -61,7 +61,7 @@ type LocationResponse struct {
 	Lon  float64 `json:"lon"`
 }
 
-type AlertResponse struct {
+type RiskWindowResponse struct {
 	Start string `json:"start"`
 	End   string `json:"end"`
 }
@@ -70,7 +70,7 @@ type MonitorResponse struct {
 	ID       uuid.UUID        `json:"id"`
 	IsActive bool             `json:"is_active"`
 	Location LocationResponse `json:"location"`
-	Alert    *AlertResponse   `json:"alert,omitempty"`
+	RiskWindow    *RiskWindowResponse   `json:"risk_window,omitempty"`
 }
 
 func toMonitorResponse(m monitor.Monitor) MonitorResponse {
@@ -83,10 +83,10 @@ func toMonitorResponse(m monitor.Monitor) MonitorResponse {
 			Lon:  m.Location.Lon,
 		},
 	}
-	if m.ActiveAlert != nil {
-		res.Alert = &AlertResponse{
-			Start: m.ActiveAlert.Start.UTC().Format(time.RFC3339),
-			End:   m.ActiveAlert.End.UTC().Format(time.RFC3339),
+	if m.RiskWindow != nil {
+		res.RiskWindow = &RiskWindowResponse{
+			Start: m.RiskWindow.Start.UTC().Format(time.RFC3339),
+			End:   m.RiskWindow.End.UTC().Format(time.RFC3339),
 		}
 	}
 	return res

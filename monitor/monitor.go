@@ -34,26 +34,26 @@ type Location struct {
 	Lon  float64
 }
 
-type Alert struct {
+type RiskWindow struct {
 	Start time.Time
 	End   time.Time
 }
 
-type AlertChangeType int
+type RiskWindowChangeType int
 
 const (
-	Unchanged AlertChangeType = iota
+	Unchanged RiskWindowChangeType = iota
 	New
 	Changed
 	Revoked
 )
 
-type AlertChange struct {
-	Type  AlertChangeType
-	Alert *Alert
+type RiskWindowChange struct {
+	Type  RiskWindowChangeType
+	RiskWindow *RiskWindow
 }
 
-func (c AlertChange) NeedsSave() bool {
+func (c RiskWindowChange) NeedsSave() bool {
 	switch c.Type {
 	case New, Changed, Revoked:
 		return true
@@ -62,7 +62,7 @@ func (c AlertChange) NeedsSave() bool {
 	}
 }
 
-func (t AlertChangeType) String() string {
+func (t RiskWindowChangeType) String() string {
 	switch t {
 	case New:
 		return "new"
@@ -75,7 +75,7 @@ func (t AlertChangeType) String() string {
 	}
 }
 
-func (c AlertChange) NeedsNotification() bool {
+func (c RiskWindowChange) NeedsNotification() bool {
 	switch c.Type {
 	case New:
 		return true
@@ -94,7 +94,7 @@ type Monitor struct {
 	UserID      uuid.UUID
 	IsActive    bool
 	Location    Location
-	ActiveAlert *Alert
+	RiskWindow *RiskWindow
 }
 
 func NewMonitor(
@@ -128,7 +128,7 @@ func NewMonitor(
 	}, nil
 }
 
-func fogAlert(forecasts []Forecast, interval time.Duration) *Alert {
+func fogRiskWindow(forecasts []Forecast, interval time.Duration) *RiskWindow {
 	var start, end time.Time
 	var anyFog bool
 	for _, forecast := range forecasts {
@@ -147,31 +147,31 @@ func fogAlert(forecasts []Forecast, interval time.Duration) *Alert {
 	if !anyFog {
 		return nil
 	}
-	return &Alert{Start: start, End: end.Add(interval)}
+	return &RiskWindow{Start: start, End: end.Add(interval)}
 }
 
-func (m Monitor) ReconcileAlert(
+func (m Monitor) ReconcileRiskWindow(
 	now time.Time,
 	forecasts []Forecast,
 	interval time.Duration,
-) (Monitor, AlertChange) {
-	newAlert := fogAlert(forecasts, interval)
+) (Monitor, RiskWindowChange) {
+	newWindow := fogRiskWindow(forecasts, interval)
 
-	if newAlert == nil && m.ActiveAlert == nil {
-		return m, AlertChange{}
+	if newWindow == nil && m.RiskWindow == nil {
+		return m, RiskWindowChange{}
 	}
-	if newAlert == nil {
-		m.ActiveAlert = nil
-		return m, AlertChange{Type: Revoked}
+	if newWindow == nil {
+		m.RiskWindow = nil
+		return m, RiskWindowChange{Type: Revoked}
 	}
-	if m.ActiveAlert == nil || m.ActiveAlert.End.Before(now) {
-		m.ActiveAlert = newAlert
-		return m, AlertChange{Type: New, Alert: newAlert}
+	if m.RiskWindow == nil || m.RiskWindow.End.Before(now) {
+		m.RiskWindow = newWindow
+		return m, RiskWindowChange{Type: New, RiskWindow: newWindow}
 	}
 
-	// now we know both newAlert and m.ActiveAlert
-	// are non-nil and the active alert is still valid
-	return m.reconcileExistingAlert(newAlert)
+	// now we know both newWindow and m.RiskWindow
+	// are non-nil and the active risk window has not expired
+	return m.reconcileExistingRiskWindow(newWindow)
 }
 
 func (m Monitor) Deactivate() Monitor {
@@ -179,7 +179,7 @@ func (m Monitor) Deactivate() Monitor {
 		return m
 	}
 	m.IsActive = false
-	m.ActiveAlert = nil
+	m.RiskWindow = nil
 	return m
 }
 
@@ -191,16 +191,16 @@ func (m Monitor) Activate() Monitor {
 	return m
 }
 
-func (m Monitor) reconcileExistingAlert(newAlert *Alert) (Monitor, AlertChange) {
-	if newAlert.Start.Equal(m.ActiveAlert.Start) &&
-		newAlert.End.Equal(m.ActiveAlert.End) {
-		return m, AlertChange{Alert: m.ActiveAlert}
+func (m Monitor) reconcileExistingRiskWindow(newWindow *RiskWindow) (Monitor, RiskWindowChange) {
+	if newWindow.Start.Equal(m.RiskWindow.Start) &&
+		newWindow.End.Equal(m.RiskWindow.End) {
+		return m, RiskWindowChange{RiskWindow: m.RiskWindow}
 	}
-	if newAlert.Start.After(m.ActiveAlert.End) ||
-		newAlert.End.Before(m.ActiveAlert.Start) {
-		m.ActiveAlert = newAlert
-		return m, AlertChange{Type: New, Alert: newAlert}
+	if newWindow.Start.After(m.RiskWindow.End) ||
+		newWindow.End.Before(m.RiskWindow.Start) {
+		m.RiskWindow = newWindow
+		return m, RiskWindowChange{Type: New, RiskWindow: newWindow}
 	}
-	m.ActiveAlert = newAlert
-	return m, AlertChange{Type: Changed, Alert: newAlert}
+	m.RiskWindow = newWindow
+	return m, RiskWindowChange{Type: Changed, RiskWindow: newWindow}
 }
