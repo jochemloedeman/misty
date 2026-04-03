@@ -54,7 +54,7 @@ type WeatherVariables struct {
 	Temperature      float64 `unit:"°C"`
 	DewPoint         float64 `unit:"°C"`
 	RelativeHumidity float64 `unit:"%"`
-	WindSpeed        float64 `unit:"m/s"`
+	WindSpeed        float64 `unit:"km/h"`
 	Visibility       float64 `unit:"m"`
 	WeatherCode      int     `unit:"wmo code"`
 }

@@ -238,8 +238,8 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 
 	horizonStr := cmp.Or(r.URL.Query().Get("horizon"), "12h")
 	horizon, err := time.ParseDuration(horizonStr)
-	if err != nil || horizon <= 0 || horizon > 48*time.Hour {
-		writeError(w, http.StatusBadRequest, withMessage("invalid horizon, must be a positive duration up to 48h"))
+	if err != nil || horizon <= 0 {
+		writeError(w, http.StatusBadRequest, withMessage("invalid horizon, must be a positive duration"))
 		return
 	}
 
