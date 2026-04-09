@@ -158,6 +158,12 @@ func withHeader(key, value string) errorOption {
 	}
 }
 
+func logCause(err error) errorOption {
+	return func(_ http.ResponseWriter, _ *ErrorResponse) {
+		slog.Error("internal error", "error", err)
+	}
+}
+
 func writeError(w http.ResponseWriter, status int, opts ...errorOption) {
 	resp := ErrorResponse{Error: http.StatusText(status)}
 	for _, opt := range opts {
@@ -185,7 +191,7 @@ func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 
 	monitors, err := s.monitorStore.ListByUser(r.Context(), uid)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 	res := make([]MonitorResponse, len(monitors))
@@ -210,7 +216,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -232,7 +238,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -246,7 +252,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 	now := s.now().Truncate(time.Hour)
 	forecasts, err := s.forecastStore.ListForMonitorInRange(r.Context(), mid, now, now.Add(horizon))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -305,13 +311,13 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
 	created, err := s.monitorStore.Create(r.Context(), m)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -347,7 +353,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			writeError(w, http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, logCause(err))
 			return
 		}
 
@@ -363,7 +369,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			writeError(w, http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, logCause(err))
 			return
 		}
 
@@ -396,7 +402,7 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -407,18 +413,18 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 	u, plainRefreshToken, err := user.New()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 	created, err := s.userStore.Create(r.Context(), u)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
 	accessToken, err := s.issuer.Issue(created.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -459,12 +465,12 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 	accessToken, err := s.issuer.Issue(u.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 
@@ -509,7 +515,7 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
 	

@@ -6,6 +6,10 @@ local:
     {{ compose_local }} up --build -d
 
 [group('local')]
+logs:
+    {{ compose_local }} logs
+
+[group('local')]
 local-down:
     {{ compose_local }} down
 
