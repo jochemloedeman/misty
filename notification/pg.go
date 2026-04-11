@@ -33,7 +33,6 @@ func toFog(row sqlc.Notification) Fog {
 	}
 }
 
-// pgOutbox implements the outbox pattern for notifications backed by PostgreSQL.
 type pgOutbox struct {
 	queries *sqlc.Queries
 }

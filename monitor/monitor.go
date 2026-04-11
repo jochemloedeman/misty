@@ -169,8 +169,6 @@ func (m Monitor) ReconcileRiskWindow(
 		return m, RiskWindowChange{Type: New, RiskWindow: newWindow}
 	}
 
-	// now we know both newWindow and m.RiskWindow
-	// are non-nil and the active risk window has not expired
 	return m.reconcileExistingRiskWindow(newWindow)
 }
 

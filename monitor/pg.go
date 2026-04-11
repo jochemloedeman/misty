@@ -62,7 +62,6 @@ func toDomainForecast(row sqlc.Forecast) Forecast {
 	}
 }
 
-// pgMonitorStore implements MonitorStore backed by PostgreSQL.
 type pgMonitorStore struct {
 	queries *sqlc.Queries
 }
@@ -197,7 +196,6 @@ func (s *pgMonitorStore) LocationExistsByUser(ctx context.Context, userID uuid.U
 	return exists, nil
 }
 
-// pgForecastStore implements ForecastStore backed by PostgreSQL.
 type pgForecastStore struct {
 	queries *sqlc.Queries
 }

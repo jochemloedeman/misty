@@ -17,8 +17,8 @@ const (
 	fogHumidityThreshold = 95   // min relative humidity in percent
 	fogWindSpeedLimit    = 10   // max wind speed in m/s
 
-	wmoFog     = 45 // WMO weather code for fog
-	wmoRimeFog = 48 // WMO weather code for depositing rime fog
+	wmoFog     = 45
+	wmoRimeFog = 48
 )
 
 type Transient struct {
