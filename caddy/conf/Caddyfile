@@ -1,4 +1,4 @@
-{$DOMAIN:misty.jochemapps.com} {
+{$DOMAIN} {
     tls {
         dns cloudflare {env.CLOUDFLARE_API_TOKEN}
         client_auth {

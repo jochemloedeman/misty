@@ -18,10 +18,10 @@ jobs:
         include:
           - component: app
             context: "."
-            image: ghcr.io/jochemloedeman/misty
+            image: ghcr.io/${{ github.repository }}
           - component: caddy
             context: "./caddy"
-            image: ghcr.io/jochemloedeman/misty/caddy
+            image: ghcr.io/${{ github.repository }}/caddy
     steps:
       - uses: actions/checkout@v6
 

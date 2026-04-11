@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REGISTRY="ghcr.io/jochemloedeman"
-APP_IMAGE="${REGISTRY}/misty:latest"
-CADDY_IMAGE="${REGISTRY}/misty/caddy:latest"
+: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
+REGISTRY="ghcr.io/${GITHUB_REPOSITORY}"
+APP_IMAGE="${REGISTRY}:latest"
+CADDY_IMAGE="${REGISTRY}/caddy:latest"
 PLATFORM="linux/amd64"
 
 echo "Building ${APP_IMAGE} (${PLATFORM})..."

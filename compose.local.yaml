@@ -5,7 +5,6 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DEV_USER_ID: ${DEV_USER_ID:-}
       APNS_DEVELOPMENT: "true"
 
   db:

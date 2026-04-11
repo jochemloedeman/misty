@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/auth"
 )
 
@@ -20,20 +19,6 @@ const (
 	wwwAuthExpiredToken = `Bearer error="invalid_token", error_description="token has expired"`
 	wwwAuthInvalidToken = `Bearer error="invalid_token", error_description="token is invalid"`
 )
-
-type DevVerifier struct {
-	devUser uuid.UUID
-}
-
-func NewDevVerifier(devUser uuid.UUID) *DevVerifier {
-	return &DevVerifier{devUser: devUser}
-}
-
-func (v *DevVerifier) Verify(token string) (*auth.Claims, error) {
-	return &auth.Claims{
-		UserID: v.devUser,
-	}, nil
-}
 
 func Compose(
 	middlewares ...func(http.Handler) http.Handler,

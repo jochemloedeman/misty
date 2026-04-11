@@ -243,23 +243,9 @@ func main() {
 		clk.Now,
 	)
 
-	var verifier api.TokenVerifier = keyRing
-	if cfg.DevUserID != nil {
-		slog.Warn("authentication disabled — using fixed dev user", "user_id", cfg.DevUserID)
-		verifier = api.NewDevVerifier(*cfg.DevUserID)
-
-		devUser := user.User{ID: *cfg.DevUserID}
-		err := userStore.Ensure(ctx, devUser)
-		if err != nil {
-			slog.Error("create dev user", "error", err)
-			os.Exit(1)
-		}
-		userStore.Ensure(ctx, devUser)
-	}
-
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		return runServer(ctx, routes, verifier, cfg.Port)
+		return runServer(ctx, routes, keyRing, cfg.Port)
 	})
 	group.Go(func() error {
 		return runCycle(
