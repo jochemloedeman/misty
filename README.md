@@ -79,14 +79,14 @@ sequenceDiagram
     end
 ```
 
-## Infrastructure and Security
+## Infrastructure and Deployment
 
-The infrastructure is defined in OpenTofu (`infra/`) and is centered around a Hetzner VPS. I wanted to make sure no request reaches the Go app without passing through several checks first.
+The infrastructure is defined in OpenTofu (`infra/`) and is centered around a Hetzner VPS.
 
 The Hetzner firewall only accepts TCP/443 from Cloudflare IP ranges. There is no public SSH port. Cloudflare sits in front with end-to-end TLS, a managed WAF ruleset and rate limiting at 20 requests per 10 seconds per IP.
 
-The firewall blocks non-Cloudflare traffic, but since Cloudflare is a shared platform, another customer could theoretically point their DNS at the origin IP and their requests would pass through. Authenticated Origin Pulls prevent that: Terraform generates a CA and client certificate that only my Cloudflare zone presents. Caddy is configured to `require_and_verify` it, refusing any connection without the right cert.
+The firewall blocks non-Cloudflare traffic, but since Cloudflare is a shared platform, another customer could (theoretically) point their DNS at the origin IP and their requests would pass through. Authenticated Origin Pulls prevent that: `infra/aop.tf` generates a CA and client certificate that only my Cloudflare zone presents. Caddy is configured to `require_and_verify` it, refusing any connection without the right cert.
 
-Caddy adds a second rate limiting layer: 30 req/min for most endpoints, 5 req/min for `/register` and `/token/refresh`. It also has a path allowlist, so anything not explicitly routed gets a 404 before it reaches the app.
+Caddy adds a second rate limiting layer. It also has a path allowlist, so anything not explicitly routed gets a 404 before it reaches the app.
 
-Deployments run over Tailscale SSH from GitHub Actions using ephemeral keys. All secrets are loaded from files at runtime.
+Deployments run over Tailscale SSH from GitHub Actions using auth keys. This makes the github action runner an ephemeral node in my tailnet for the duration of the deployment. The node is tagged, which makes it subject to an ACL that lets it access only the VPS (and not other resources on my tailnet).
