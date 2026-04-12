@@ -38,5 +38,10 @@ secrets/
 *.tfstate
 *.tfstate.backup
 *.tfplan
+*.tfvars
+!*.tfvars.example
+
+# macOS
+.DS_Store
 
 dist/
