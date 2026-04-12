@@ -25,15 +25,9 @@ graph LR
 
 ## Application
 
-Two goroutines run side by side: one serves HTTP requests from the iOS app, the other refreshes weather forecasts in the background.
+One goroutine serves the API, another refreshes forecasts. The refresh loop `select`s on an hourly ticker and a buffered channel. Creating a monitor pushes it onto that channel so it gets its first forecast right away.
 
-The refresh goroutine spends most of its time blocked in a `select`, waiting for something to happen. A ticker fires once an hour and triggers a full pass over every active monitor, pulling fresh data from Open-Meteo and checking for fog. But the loop also watches a second channel for one-off requests. When someone creates a new monitor through the API, the handler pushes it onto a buffered channel so it gets its first forecast immediately instead of sitting idle until the next tick.
-
-The API layer doesn't call into the refresh code directly. At startup, the HTTP handler receives a plain callback that does a non-blocking channel send. The handler fires it and moves on. If the buffer happens to be full, the send is dropped and the monitor waits for the next scheduled pass.
-
-All database writes for a single refresh happen inside one transaction: forecasts, notification records, and the updated monitor state either all commit or none do.
-
-Notifications follow an outbox pattern. When a refresh detects fog, it doesn't push to APNs on the spot. It writes a notification row to the database inside the same transaction that stores the forecast. Delivery is a separate step that runs after each refresh pass: query the outbox for unsent rows, push each one through APNs, mark it sent. If one delivery fails the rest still go out, and the failed row stays in the outbox for the next pass.
+Each refresh writes forecasts, monitor state, and any fog notifications in a single transaction. Notifications use an outbox: delivery runs as a separate step after each pass, pushing unsent rows to APNs and marking them sent.
 
 ```mermaid
 sequenceDiagram
