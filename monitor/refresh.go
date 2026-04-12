@@ -201,15 +201,15 @@ func persist(
 	s AtomicStores,
 	monitor Monitor,
 	forecasts []Forecast,
-	ac RiskWindowChange,
+	change RiskWindowChange,
 ) error {
 	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
 		return fmt.Errorf("save forecasts: %w", err)
 	}
 
-	if ac.NeedsNotification() {
+	if change.NeedsNotification() {
 		msg := fogAlertMessage(monitor)
-		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, ac.RiskWindow.Start, ac.RiskWindow.End)
+		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, change.RiskWindow.Start, change.RiskWindow.End)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
@@ -224,7 +224,7 @@ func persist(
 		)
 	}
 
-	if ac.NeedsSave() {
+	if change.NeedsSave() {
 		if _, err := s.MonitorStore.Update(ctx, monitor); err != nil {
 			return fmt.Errorf("update alert: %w", err)
 		}
