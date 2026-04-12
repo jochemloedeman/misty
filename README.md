@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="assets/misty_fat-iOS-Default-1024x1024@1x.png" width="128" alt="Misty app icon" />
+  <a href="https://apps.apple.com/nl/app/misty-fog-forecasts/id6761374118">
+    <img src="assets/misty_fat-iOS-Default-1024x1024@1x.png" width="128" alt="Misty app icon" />
+  </a>
 </p>
 
 # Misty
