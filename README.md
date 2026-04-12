@@ -42,9 +42,9 @@ sequenceDiagram
     alt Timer tick (every hour)
         Cycle->>DB: list active monitors
         DB-->>Cycle: monitors
-    else POST /monitors
-        App->>API: create monitor
-        API->>DB: insert monitor
+    else onRefreshNeeded
+        App->>API: create/activate monitor
+        API->>DB: upsert monitor
         DB-->>API: monitor
         API-->>App: 201 Created
         API-)Ch: non-blocking send
