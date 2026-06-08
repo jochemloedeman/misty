@@ -49,7 +49,7 @@ const (
 )
 
 type RiskWindowChange struct {
-	Type  RiskWindowChangeType
+	Type       RiskWindowChangeType
 	RiskWindow *RiskWindow
 }
 
@@ -90,10 +90,10 @@ type ForecastHorizon struct {
 }
 
 type Monitor struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	IsActive    bool
-	Location    Location
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	IsActive   bool
+	Location   Location
 	RiskWindow *RiskWindow
 }
 

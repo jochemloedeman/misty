@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,6 +24,7 @@ import (
 	"github.com/jochemloedeman/misty/weather"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/token"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -129,23 +133,18 @@ func checkHealth(port string) {
 	}
 }
 
-func main() {
-	if len(os.Args) > 1 && os.Args[1] == "health" {
-		checkHealth("8080")
-		return
-	}
-
+func run() (err error) {
 	cfg, err := loadConfig()
 	if err != nil {
 		slog.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
 
-	slog.SetDefault(
-		slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			Level: cfg.LogLevel,
-		})),
-	)
+	slog.SetDefault(slog.New(fanout{
+		otelslog.NewHandler("misty"),
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}),
+	}))
+
 	slog.Info("starting misty",
 		"port", cfg.Port,
 		"log_level", cfg.LogLevel,
@@ -153,19 +152,30 @@ func main() {
 		"forecast_horizon", cfg.ForecastHorizon,
 	)
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	otelShutdown, err := setupOTelSDK(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to setup open telemtry: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, otelShutdown(ctx))
+	}()
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		slog.Error("failed to connect to database", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer pool.Close()
 
 	err = db.Migrate(ctx, pool)
 	if err != nil {
-		slog.Error("database migration failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("database migration failed: %w", err)
 	}
 
 	slog.Info("database connected")
@@ -222,9 +232,12 @@ func main() {
 			apple.NewPGTokenResolver(queries),
 			cfg.APNS.Topic,
 		)
-		slog.Info("APNs delivery enabled",
-			"topic", cfg.APNS.Topic,
-			"environment", map[bool]string{true: "development", false: "production"}[cfg.APNS.Development],
+		slog.Info(
+			"APNs delivery enabled",
+			"topic",
+			cfg.APNS.Topic,
+			"environment",
+			map[bool]string{true: "development", false: "production"}[cfg.APNS.Development],
 		)
 	} else {
 		slog.Warn("APNs not configured — notifications will be logged only")
@@ -259,6 +272,18 @@ func main() {
 	})
 
 	if err := group.Wait(); err != nil {
+		slog.Error("application error", "error", err)
+		return err
+	}
+	return nil
+}
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "health" {
+		checkHealth("8080")
+		return
+	}
+	if err := run(); err != nil {
 		slog.Error("application error", "error", err)
 		os.Exit(1)
 	}

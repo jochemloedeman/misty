@@ -34,6 +34,7 @@ type config struct {
 	ForecastHorizon   monitor.ForecastHorizon
 	APNS              *apnsConfig
 	MonitorLimit      int
+	ConsoleLog        bool
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -165,6 +166,14 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Topic:       topic,
 			Development: os.Getenv("APNS_DEVELOPMENT") == "true",
 		}
+	}
+
+	if v := os.Getenv("CONSOLE_LOG"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid CONSOLE_LOG %q: %w", v, err)
+		}
+		cfg.ConsoleLog = b
 	}
 
 	return cfg, nil

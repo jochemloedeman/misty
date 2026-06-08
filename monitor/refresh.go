@@ -115,7 +115,6 @@ func NewRefresher(
 	}
 }
 
-
 func (r *Refresher) RefreshC() <-chan Monitor {
 	return r.refreshC
 }
@@ -209,7 +208,13 @@ func persist(
 
 	if change.NeedsNotification() {
 		msg := fogAlertMessage(monitor)
-		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, change.RiskWindow.Start, change.RiskWindow.End)
+		notif := notification.New(
+			monitor.UserID,
+			msg,
+			monitor.Location.Name,
+			change.RiskWindow.Start,
+			change.RiskWindow.End,
+		)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}

@@ -67,10 +67,10 @@ type RiskWindowResponse struct {
 }
 
 type MonitorResponse struct {
-	ID       uuid.UUID        `json:"id"`
-	IsActive bool             `json:"is_active"`
-	Location LocationResponse `json:"location"`
-	RiskWindow    *RiskWindowResponse   `json:"risk_window,omitempty"`
+	ID         uuid.UUID           `json:"id"`
+	IsActive   bool                `json:"is_active"`
+	Location   LocationResponse    `json:"location"`
+	RiskWindow *RiskWindowResponse `json:"risk_window,omitempty"`
 }
 
 func toMonitorResponse(m monitor.Monitor) MonitorResponse {
@@ -245,7 +245,11 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 	horizonStr := cmp.Or(r.URL.Query().Get("horizon"), "12h")
 	horizon, err := time.ParseDuration(horizonStr)
 	if err != nil || horizon <= 0 {
-		writeError(w, http.StatusBadRequest, withMessage("invalid horizon, must be a positive duration"))
+		writeError(
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid horizon, must be a positive duration"),
+		)
 		return
 	}
 
@@ -307,7 +311,11 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, monitor.ErrDuplicateLocation) {
-		writeError(w, http.StatusConflict, withMessage("a monitor for this location already exists"))
+		writeError(
+			w,
+			http.StatusConflict,
+			withMessage("a monitor for this location already exists"),
+		)
 		return
 	}
 	if err != nil {
@@ -496,7 +504,7 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	
+
 	_, err := hex.DecodeString(p.PushToken)
 	if err != nil {
 		slog.Debug("decoding push token hex", "error", err)
@@ -518,9 +526,9 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, logCause(err))
 		return
 	}
-	
+
 	slog.Info("push token updated", "user_id", updated.ID)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
-	})	
+	})
 }

@@ -6,10 +6,9 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jochemloedeman/misty/notification"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
-
-	"github.com/jochemloedeman/misty/notification"
 )
 
 // TokenResolver looks up an APNs device token for a given user ID.
