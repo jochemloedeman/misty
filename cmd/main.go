@@ -337,6 +337,7 @@ func run() (err error) {
 		} else {
 			apnsClient = apnsClient.Production()
 		}
+		apnsClient.HTTPClient.Transport = otelhttp.NewTransport(apnsClient.HTTPClient.Transport)
 		deliverFn = apple.NewDeliverer(
 			apnsClient,
 			apple.NewPGTokenResolver(queries),

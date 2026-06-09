@@ -8,7 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("github.com/jochemloedeman/misty/notification")
 
 type outbox interface {
 	ListUnsent(ctx context.Context) ([]Fog, error)
@@ -36,10 +42,14 @@ func NewNotifier(
 }
 
 func (n *Notifier) Notify(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "notify")
+	defer span.End()
+
 	notifications, err := n.outbox.ListUnsent(ctx)
 	if err != nil {
 		return err
 	}
+	span.SetAttributes(attribute.Int("notification.count", len(notifications)))
 
 	slog.DebugContext(
 		ctx,
@@ -50,29 +60,41 @@ func (n *Notifier) Notify(ctx context.Context) error {
 
 	var errs []error
 	for _, notif := range notifications {
-		if err := n.deliver(ctx, notif); err != nil {
-			errs = append(
-				errs,
-				fmt.Errorf("deliver notification %s: %w", notif.ID, err),
-			)
-			continue
+		if err := n.deliverOne(ctx, notif); err != nil {
+			errs = append(errs, err)
 		}
-		if err := n.outbox.MarkSent(ctx, notif.ID, n.now()); err != nil {
-			errs = append(
-				errs,
-				fmt.Errorf("mark notification %s as sent: %w", notif.ID, err),
-			)
-			continue
-		}
-		slog.InfoContext(
-			ctx,
-			"notification delivered",
-			"notification_id",
-			notif.ID,
-			"recipient_id",
-			notif.RecipientID,
-		)
 	}
 
 	return errors.Join(errs...)
+}
+
+func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {
+	ctx, span := tracer.Start(ctx, "notify.deliver", trace.WithAttributes(
+		attribute.String("notification.id", notif.ID.String()),
+		attribute.String("recipient.id", notif.RecipientID.String()),
+	))
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
+	if err := n.deliver(ctx, notif); err != nil {
+		return fmt.Errorf("deliver notification %s: %w", notif.ID, err)
+	}
+	if err := n.outbox.MarkSent(ctx, notif.ID, n.now()); err != nil {
+		return fmt.Errorf("mark notification %s as sent: %w", notif.ID, err)
+	}
+
+	slog.InfoContext(
+		ctx,
+		"notification delivered",
+		"notification_id",
+		notif.ID,
+		"recipient_id",
+		notif.RecipientID,
+	)
+	return nil
 }
