@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -93,57 +92,21 @@ type NotificationOutbox interface {
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
 
 type Refresher struct {
-	clock        Clock
-	forecaster   Forecaster
-	monitorStore MonitorStore
-	runAtom      RunAtomically
-	refreshC     chan Monitor
+	clock      Clock
+	forecaster Forecaster
+	runAtom    RunAtomically
 }
 
 func NewRefresher(
 	forecaster Forecaster,
-	monitorStore MonitorStore,
 	runAtom RunAtomically,
 	clock Clock,
 ) *Refresher {
 	return &Refresher{
-		forecaster:   forecaster,
-		monitorStore: monitorStore,
-		runAtom:      runAtom,
-		clock:        clock,
-		refreshC:     make(chan Monitor, 8),
+		forecaster: forecaster,
+		runAtom:    runAtom,
+		clock:      clock,
 	}
-}
-
-func (r *Refresher) RefreshC() <-chan Monitor {
-	return r.refreshC
-}
-
-func (r *Refresher) RequestRefresh(ctx context.Context, m Monitor) {
-	select {
-	case r.refreshC <- m:
-		slog.DebugContext(
-			ctx,
-			"immediate refresh requested",
-			"monitor_id",
-			m.ID,
-		)
-	default:
-		slog.WarnContext(
-			ctx,
-			"immediate refresh dropped, buffer full",
-			"monitor_id",
-			m.ID,
-		)
-	}
-}
-
-func (r *Refresher) RefreshOne(
-	ctx context.Context,
-	m Monitor,
-	horizon ForecastHorizon,
-) error {
-	return r.refresh(ctx, m, horizon)
 }
 
 type AtomicStores struct {
@@ -152,41 +115,7 @@ type AtomicStores struct {
 	Outbox        NotificationOutbox
 }
 
-func (r *Refresher) RefreshAll(
-	ctx context.Context,
-	horizon ForecastHorizon,
-) error {
-	monitors, err := r.monitorStore.ListAllActive(ctx)
-	if err != nil {
-		return fmt.Errorf("list active monitors: %w", err)
-	}
-
-	slog.InfoContext(ctx, "refresh started", "monitor_count", len(monitors))
-
-	for i := range monitors {
-		err := r.refresh(ctx, monitors[i], horizon)
-		if err == nil {
-			continue
-		}
-		if _, ok := errors.AsType[*Transient](err); ok {
-			slog.WarnContext(
-				ctx,
-				"transient error refreshing monitor",
-				"monitor_id",
-				monitors[i].ID,
-				"error",
-				err,
-			)
-			continue
-		}
-		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
-	}
-
-	slog.InfoContext(ctx, "refresh completed", "monitor_count", len(monitors))
-	return nil
-}
-
-func (r *Refresher) refresh(
+func (r *Refresher) Refresh(
 	ctx context.Context,
 	monitor Monitor,
 	horizon ForecastHorizon,

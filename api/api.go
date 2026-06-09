@@ -230,7 +230,6 @@ func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 
 func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
-	slog.InfoContext(r.Context(), "correlated log")
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
