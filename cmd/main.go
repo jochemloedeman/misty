@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/token"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -33,40 +35,48 @@ const (
 	maxBodySize     = 4 << 10
 )
 
+func requestFilter(r *http.Request) bool {
+	if slices.Contains([]string{"/health", "/metrics"}, r.URL.Path) {
+		return false
+	}
+	return true
+}
+
 func runServer(
 	ctx context.Context,
 	routes *api.API,
 	verifier api.TokenVerifier,
 	port string,
 ) error {
-	authenticated := http.NewServeMux()
-	authenticated.HandleFunc("GET /monitors", routes.ListMonitors)
-	authenticated.HandleFunc("GET /monitors/{id}", routes.GetMonitor)
-	authenticated.HandleFunc("GET /monitors/{id}/forecasts", routes.ListForecasts)
-	authenticated.HandleFunc("POST /monitors", routes.CreateMonitor)
-	authenticated.HandleFunc(
-		"POST /monitors/{id}/deactivate",
-		routes.SetMonitorStatus(false),
-	)
-	authenticated.HandleFunc(
-		"POST /monitors/{id}/activate",
-		routes.SetMonitorStatus(true),
-	)
-	authenticated.HandleFunc("DELETE /monitors/{id}", routes.DeleteMonitor)
-	authenticated.HandleFunc("PUT /device", routes.UpdatePushToken)
-
 	mux := http.NewServeMux()
-	mux.Handle("/", api.RequireUser(verifier)(authenticated))
+
+	requireUser := api.RequireUser(verifier)
+	protected := func(h http.HandlerFunc) http.HandlerFunc {
+		return requireUser(h).ServeHTTP
+	}
+
+	// protected routes
+	mux.HandleFunc("GET /monitors", protected(routes.ListMonitors))
+	mux.HandleFunc("GET /monitors/{id}", protected(routes.GetMonitor))
+	mux.HandleFunc("GET /monitors/{id}/forecasts", protected(routes.ListForecasts))
+	mux.HandleFunc("POST /monitors", protected(routes.CreateMonitor))
+	mux.HandleFunc("POST /monitors/{id}/deactivate", protected(routes.SetMonitorStatus(false)))
+	mux.HandleFunc("POST /monitors/{id}/activate", protected(routes.SetMonitorStatus(true)))
+	mux.HandleFunc("DELETE /monitors/{id}", protected(routes.DeleteMonitor))
+	mux.HandleFunc("PUT /device", protected(routes.UpdatePushToken))
+
+	// bare routes
 	mux.HandleFunc("POST /register", routes.Register)
 	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
 	mux.HandleFunc("GET /health", routes.HealthCheck)
 
+	instrumented := otelhttp.NewHandler(mux, "server", otelhttp.WithFilter(requestFilter))
 	srv := &http.Server{
 		Addr: ":" + port,
 		Handler: api.Compose(
 			api.RequestLogger,
 			api.MaxBodySize(maxBodySize),
-		)(mux),
+		)(instrumented),
 	}
 
 	go func() {
