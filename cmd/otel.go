@@ -102,7 +102,9 @@ func newTracerProvider(
 	return tracerProvider, nil
 }
 
-func newMeterProvider(resource *resource.Resource) (*metric.MeterProvider, error) {
+func newMeterProvider(
+	resource *resource.Resource,
+) (*metric.MeterProvider, error) {
 	metricExporter, err := stdoutmetric.New(stdoutmetric.WithPrettyPrint())
 	if err != nil {
 		return nil, err
@@ -135,5 +137,8 @@ func newLoggerProvider(
 }
 
 func newResource(ctx context.Context) (*resource.Resource, error) {
-	return resource.New(ctx, resource.WithAttributes(semconv.ServiceName(serviceName)))
+	return resource.New(
+		ctx,
+		resource.WithAttributes(semconv.ServiceName(serviceName)),
+	)
 }

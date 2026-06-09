@@ -3,12 +3,6 @@ logging {
   format = "logfmt"
 }
 
-loki.write "local" {
-  endpoint {
-    url = "http://loki:3100/loki/api/v1/push"
-  }
-}
-
 otelcol.receiver.otlp "default" {
   grpc {
     endpoint = "0.0.0.0:4317"
@@ -18,13 +12,18 @@ otelcol.receiver.otlp "default" {
   }
 
   output {
-    logs = [otelcol.exporter.loki.default.input]
+    logs   = [otelcol.exporter.otlphttp.loki.input]
     traces = [otelcol.exporter.otlp.tempo.input]
   }
 }
 
-otelcol.exporter.loki "default" {
-  forward_to = [loki.write.local.receiver]   // ← reuses what you already have
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = "http://loki:3100/otlp"
+    tls {
+      insecure = true
+    }
+  }
 }
 
 otelcol.exporter.otlp "tempo" {

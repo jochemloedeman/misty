@@ -119,16 +119,30 @@ func (r *Refresher) RefreshC() <-chan Monitor {
 	return r.refreshC
 }
 
-func (r *Refresher) RequestRefresh(m Monitor) {
+func (r *Refresher) RequestRefresh(ctx context.Context, m Monitor) {
 	select {
 	case r.refreshC <- m:
-		slog.Debug("immediate refresh requested", "monitor_id", m.ID)
+		slog.DebugContext(
+			ctx,
+			"immediate refresh requested",
+			"monitor_id",
+			m.ID,
+		)
 	default:
-		slog.Warn("immediate refresh dropped, buffer full", "monitor_id", m.ID)
+		slog.WarnContext(
+			ctx,
+			"immediate refresh dropped, buffer full",
+			"monitor_id",
+			m.ID,
+		)
 	}
 }
 
-func (r *Refresher) RefreshOne(ctx context.Context, m Monitor, horizon ForecastHorizon) error {
+func (r *Refresher) RefreshOne(
+	ctx context.Context,
+	m Monitor,
+	horizon ForecastHorizon,
+) error {
 	return r.refresh(ctx, m, horizon)
 }
 
@@ -147,7 +161,7 @@ func (r *Refresher) RefreshAll(
 		return fmt.Errorf("list active monitors: %w", err)
 	}
 
-	slog.Info("refresh started", "monitor_count", len(monitors))
+	slog.InfoContext(ctx, "refresh started", "monitor_count", len(monitors))
 
 	for i := range monitors {
 		err := r.refresh(ctx, monitors[i], horizon)
@@ -155,7 +169,8 @@ func (r *Refresher) RefreshAll(
 			continue
 		}
 		if _, ok := errors.AsType[*Transient](err); ok {
-			slog.Warn(
+			slog.WarnContext(
+				ctx,
 				"transient error refreshing monitor",
 				"monitor_id",
 				monitors[i].ID,
@@ -167,7 +182,7 @@ func (r *Refresher) RefreshAll(
 		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
 	}
 
-	slog.Info("refresh completed", "monitor_count", len(monitors))
+	slog.InfoContext(ctx, "refresh completed", "monitor_count", len(monitors))
 	return nil
 }
 
@@ -182,9 +197,13 @@ func (r *Refresher) refresh(
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	monitor, change := monitor.ReconcileRiskWindow(now, forecasts, horizon.Interval)
+	monitor, change := monitor.ReconcileRiskWindow(
+		now,
+		forecasts,
+		horizon.Interval,
+	)
 
-	slog.Info("alert reconciled",
+	slog.InfoContext(ctx, "alert reconciled",
 		"monitor_id", monitor.ID,
 		"location", monitor.Location.Name,
 		"change_type", change.Type,
@@ -218,7 +237,8 @@ func persist(
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
-		slog.Info(
+		slog.InfoContext(
+			ctx,
 			"notification queued",
 			"monitor_id",
 			monitor.ID,
@@ -233,7 +253,7 @@ func persist(
 		if _, err := s.MonitorStore.Update(ctx, monitor); err != nil {
 			return fmt.Errorf("update alert: %w", err)
 		}
-		slog.Debug("monitor updated", "monitor_id", monitor.ID)
+		slog.DebugContext(ctx, "monitor updated", "monitor_id", monitor.ID)
 	}
 
 	return nil

@@ -58,19 +58,32 @@ func runServer(
 	// protected routes
 	mux.HandleFunc("GET /monitors", protected(routes.ListMonitors))
 	mux.HandleFunc("GET /monitors/{id}", protected(routes.GetMonitor))
-	mux.HandleFunc("GET /monitors/{id}/forecasts", protected(routes.ListForecasts))
+	mux.HandleFunc(
+		"GET /monitors/{id}/forecasts",
+		protected(routes.ListForecasts),
+	)
 	mux.HandleFunc("POST /monitors", protected(routes.CreateMonitor))
-	mux.HandleFunc("POST /monitors/{id}/deactivate", protected(routes.SetMonitorStatus(false)))
-	mux.HandleFunc("POST /monitors/{id}/activate", protected(routes.SetMonitorStatus(true)))
+	mux.HandleFunc(
+		"POST /monitors/{id}/deactivate",
+		protected(routes.SetMonitorStatus(false)),
+	)
+	mux.HandleFunc(
+		"POST /monitors/{id}/activate",
+		protected(routes.SetMonitorStatus(true)),
+	)
 	mux.HandleFunc("DELETE /monitors/{id}", protected(routes.DeleteMonitor))
 	mux.HandleFunc("PUT /device", protected(routes.UpdatePushToken))
 
-	// bare routes
+	// bare route
 	mux.HandleFunc("POST /register", routes.Register)
 	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
 	mux.HandleFunc("GET /health", routes.HealthCheck)
 
-	instrumented := otelhttp.NewHandler(mux, "server", otelhttp.WithFilter(requestFilter))
+	instrumented := otelhttp.NewHandler(
+		mux,
+		"server",
+		otelhttp.WithFilter(requestFilter),
+	)
 	srv := &http.Server{
 		Addr: ":" + port,
 		Handler: api.Compose(
@@ -81,7 +94,7 @@ func runServer(
 
 	go func() {
 		<-ctx.Done()
-		slog.Info("http server shutting down")
+		slog.InfoContext(ctx, "http server shutting down")
 
 		shutdownCtx, cancel := context.WithTimeout(
 			context.Background(),
@@ -91,7 +104,7 @@ func runServer(
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	slog.Info("http server listening", "addr", srv.Addr)
+	slog.InfoContext(ctx, "http server listening", "addr", srv.Addr)
 
 	err := srv.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -116,18 +129,25 @@ func runCycle(
 		select {
 		case <-ticker.C:
 			if err := refresher.RefreshAll(ctx, horizon); err != nil {
-				slog.Error("refresh error", "error", err)
+				slog.ErrorContext(ctx, "refresh error", "error", err)
 			}
 		case m := <-refresher.RefreshC():
 			if err := refresher.RefreshOne(ctx, m, horizon); err != nil {
-				slog.Error("immediate refresh failed", "monitor_id", m.ID, "error", err)
+				slog.ErrorContext(
+					ctx,
+					"immediate refresh failed",
+					"monitor_id",
+					m.ID,
+					"error",
+					err,
+				)
 			}
 		case <-ctx.Done():
 			return nil
 		}
 
 		if err := notifier.Notify(ctx); err != nil {
-			slog.Error("notification error", "error", err)
+			slog.ErrorContext(ctx, "notification error", "error", err)
 		}
 	}
 }
@@ -146,16 +166,24 @@ func checkHealth(port string) {
 func run() (err error) {
 	cfg, err := loadConfig()
 	if err != nil {
-		slog.Error("invalid configuration", "error", err)
+		slog.ErrorContext(
+			context.Background(),
+			"invalid configuration",
+			"error",
+			err,
+		)
 		os.Exit(1)
 	}
 
 	slog.SetDefault(slog.New(fanout{
 		otelslog.NewHandler("misty"),
-		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}),
+		slog.NewTextHandler(
+			os.Stderr,
+			&slog.HandlerOptions{Level: cfg.LogLevel},
+		),
 	}))
 
-	slog.Info("starting misty",
+	slog.InfoContext(context.Background(), "starting misty",
 		"port", cfg.Port,
 		"log_level", cfg.LogLevel,
 		"reconcile_interval", cfg.ReconcileInterval,
@@ -188,7 +216,7 @@ func run() (err error) {
 		return fmt.Errorf("database migration failed: %w", err)
 	}
 
-	slog.Info("database connected")
+	slog.InfoContext(ctx, "database connected")
 
 	clk := clock.NewRealClock()
 
@@ -205,7 +233,7 @@ func run() (err error) {
 
 	keyRing, err := auth.NewKeyRing(cfg.SigningSecrets, clk.Now)
 	if err != nil {
-		slog.Error("invalid key ring configuration", "error", err)
+		slog.ErrorContext(ctx, "invalid key ring configuration", "error", err)
 		os.Exit(1)
 	}
 	forecastStore := monitor.NewForecastStore(queries)
@@ -223,7 +251,7 @@ func run() (err error) {
 	if cfg.APNS != nil {
 		authKey, err := token.AuthKeyFromFile(cfg.APNS.KeyPath)
 		if err != nil {
-			slog.Error("invalid APNs auth key", "error", err)
+			slog.ErrorContext(ctx, "invalid APNs auth key", "error", err)
 			os.Exit(1)
 		}
 		tok := &token.Token{
@@ -242,7 +270,8 @@ func run() (err error) {
 			apple.NewPGTokenResolver(queries),
 			cfg.APNS.Topic,
 		)
-		slog.Info(
+		slog.InfoContext(
+			ctx,
 			"APNs delivery enabled",
 			"topic",
 			cfg.APNS.Topic,
@@ -250,9 +279,12 @@ func run() (err error) {
 			map[bool]string{true: "development", false: "production"}[cfg.APNS.Development],
 		)
 	} else {
-		slog.Warn("APNs not configured — notifications will be logged only")
-		deliverFn = func(_ context.Context, notif notification.Fog) error {
-			slog.Info("notification delivered (no-op)",
+		slog.WarnContext(
+			ctx,
+			"APNs not configured — notifications will be logged only",
+		)
+		deliverFn = func(ctx context.Context, notif notification.Fog) error {
+			slog.InfoContext(ctx, "notification delivered (no-op)",
 				"notification_id", notif.ID,
 				"recipient_id", notif.RecipientID,
 			)
@@ -282,7 +314,7 @@ func run() (err error) {
 	})
 
 	if err := group.Wait(); err != nil {
-		slog.Error("application error", "error", err)
+		slog.ErrorContext(ctx, "application error", "error", err)
 		return err
 	}
 	return nil
@@ -294,7 +326,12 @@ func main() {
 		return
 	}
 	if err := run(); err != nil {
-		slog.Error("application error", "error", err)
+		slog.ErrorContext(
+			context.Background(),
+			"application error",
+			"error",
+			err,
+		)
 		os.Exit(1)
 	}
 }

@@ -116,7 +116,11 @@ func TestNewMonitor(t *testing.T) {
 
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("NewMonitor() error = %v, want %v", err, tt.wantErr)
+					t.Fatalf(
+						"NewMonitor() error = %v, want %v",
+						err,
+						tt.wantErr,
+					)
 				}
 				return
 			}

@@ -116,7 +116,8 @@ func (f *Forecaster) Forecast(
 	}
 
 	reqURL := buildURL(location, horizon, intconf)
-	slog.Debug(
+	slog.DebugContext(
+		ctx,
 		"fetching forecast",
 		"location",
 		location.Name,
@@ -180,7 +181,8 @@ func (f *Forecaster) Forecast(
 			},
 		}
 	}
-	slog.Info(
+	slog.InfoContext(
+		ctx,
 		"forecast retrieved",
 		"location",
 		location.Name,

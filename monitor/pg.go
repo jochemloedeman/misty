@@ -82,7 +82,10 @@ func (s *pgMonitorStore) ListAllActive(ctx context.Context) ([]Monitor, error) {
 	return monitors, nil
 }
 
-func (s *pgMonitorStore) ListByUser(ctx context.Context, userID uuid.UUID) ([]Monitor, error) {
+func (s *pgMonitorStore) ListByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]Monitor, error) {
 	rows, err := s.queries.ListMonitors(ctx, dbUUID(userID))
 	if err != nil {
 		return nil, fmt.Errorf("list monitors: %w", err)
@@ -176,7 +179,10 @@ func (s *pgMonitorStore) Delete(
 	return nil
 }
 
-func (s *pgMonitorStore) CountByUser(ctx context.Context, userID uuid.UUID) (int, error) {
+func (s *pgMonitorStore) CountByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) (int, error) {
 	count, err := s.queries.CountMonitorsByUser(ctx, dbUUID(userID))
 	if err != nil {
 		return 0, fmt.Errorf("count monitors: %w", err)

@@ -59,7 +59,10 @@ func loadConfig() (config, error) { //nolint:cyclop
 	}
 	postgresPassword, err := os.ReadFile(postgresPasswordFile)
 	if err != nil {
-		return config{}, fmt.Errorf("failed to read postgres password from file: %w", err)
+		return config{}, fmt.Errorf(
+			"failed to read postgres password from file: %w",
+			err,
+		)
 	}
 	postgresPassword = bytes.TrimSpace(postgresPassword)
 
@@ -80,14 +83,23 @@ func loadConfig() (config, error) { //nolint:cyclop
 	}
 	signingSecret, err := os.ReadFile(signingSecretFile)
 	if err != nil {
-		return config{}, fmt.Errorf("failed to read signing secret from file: %w", err)
+		return config{}, fmt.Errorf(
+			"failed to read signing secret from file: %w",
+			err,
+		)
 	}
-	cfg.SigningSecrets = append(cfg.SigningSecrets, bytes.TrimSpace(signingSecret))
+	cfg.SigningSecrets = append(
+		cfg.SigningSecrets,
+		bytes.TrimSpace(signingSecret),
+	)
 
 	if prev := os.Getenv("SIGNING_SECRET_PREVIOUS_FILE"); prev != "" {
 		prevSecret, err := os.ReadFile(prev)
 		if err != nil {
-			return config{}, fmt.Errorf("failed to read previous signing secret from file: %w", err)
+			return config{}, fmt.Errorf(
+				"failed to read previous signing secret from file: %w",
+				err,
+			)
 		}
 		prevSecret = bytes.TrimSpace(prevSecret)
 		if len(prevSecret) != 0 {
@@ -141,7 +153,10 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("invalid MONITOR_LIMIT %q: %w", v, err)
 		}
 		if n <= 0 {
-			return config{}, fmt.Errorf("MONITOR_LIMIT must be positive, got %d", n)
+			return config{}, fmt.Errorf(
+				"MONITOR_LIMIT must be positive, got %d",
+				n,
+			)
 		}
 		cfg.MonitorLimit = n
 	}
@@ -149,15 +164,21 @@ func loadConfig() (config, error) { //nolint:cyclop
 	if v := os.Getenv("APNS_KEY_FILE"); v != "" {
 		keyID := os.Getenv("APNS_KEY_ID")
 		if keyID == "" {
-			return config{}, fmt.Errorf("APNS_KEY_ID is required when APNS_KEY_FILE is set")
+			return config{}, fmt.Errorf(
+				"APNS_KEY_ID is required when APNS_KEY_FILE is set",
+			)
 		}
 		teamID := os.Getenv("APNS_TEAM_ID")
 		if teamID == "" {
-			return config{}, fmt.Errorf("APNS_TEAM_ID is required when APNS_KEY_FILE is set")
+			return config{}, fmt.Errorf(
+				"APNS_TEAM_ID is required when APNS_KEY_FILE is set",
+			)
 		}
 		topic := os.Getenv("APNS_TOPIC")
 		if topic == "" {
-			return config{}, fmt.Errorf("APNS_TOPIC is required when APNS_KEY_FILE is set")
+			return config{}, fmt.Errorf(
+				"APNS_TOPIC is required when APNS_KEY_FILE is set",
+			)
 		}
 		cfg.APNS = &apnsConfig{
 			KeyPath:     v,

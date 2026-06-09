@@ -22,12 +22,20 @@ const userIDKey contextKey = "userID"
 
 type MonitorStore interface {
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error)
-	Get(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) (monitor.Monitor, error)
+	Get(
+		ctx context.Context,
+		userID uuid.UUID,
+		monitorID uuid.UUID,
+	) (monitor.Monitor, error)
 	Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
 	Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error
 	CountByUser(ctx context.Context, userID uuid.UUID) (int, error)
-	LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error)
+	LocationExistsByUser(
+		ctx context.Context,
+		userID uuid.UUID,
+		lat, lon float64,
+	) (bool, error)
 }
 
 type UserStore interface {
@@ -36,7 +44,11 @@ type UserStore interface {
 		ctx context.Context,
 		refreshToken string,
 	) (user.User, error)
-	UpdatePushToken(ctx context.Context, userID uuid.UUID, pushToken string) (user.User, error)
+	UpdatePushToken(
+		ctx context.Context,
+		userID uuid.UUID,
+		pushToken string,
+	) (user.User, error)
 }
 
 type ForecastStore interface {
@@ -108,7 +120,7 @@ type API struct {
 	forecastStore   ForecastStore
 	userStore       UserStore
 	issuer          TokenIssuer
-	onRefreshNeeded func(monitor.Monitor)
+	onRefreshNeeded func(context.Context, monitor.Monitor)
 	now             func() time.Time
 	monitorLimit    int
 }
@@ -118,7 +130,7 @@ func New(
 	monitorStore MonitorStore,
 	forecastStore ForecastStore,
 	issuer TokenIssuer,
-	onRefreshNeeded func(monitor.Monitor),
+	onRefreshNeeded func(context.Context, monitor.Monitor),
 	now func() time.Time,
 	monitorLimit int,
 ) *API {
@@ -158,30 +170,40 @@ func withHeader(key, value string) errorOption {
 	}
 }
 
-func logCause(err error) errorOption {
+func logCause(ctx context.Context, err error) errorOption {
 	return func(_ http.ResponseWriter, _ *ErrorResponse) {
-		slog.Error("internal error", "error", err)
+		slog.ErrorContext(ctx, "internal error", "error", err)
 	}
 }
 
-func writeError(w http.ResponseWriter, status int, opts ...errorOption) {
+func writeError(
+	ctx context.Context,
+	w http.ResponseWriter,
+	status int,
+	opts ...errorOption,
+) {
 	resp := ErrorResponse{Error: http.StatusText(status)}
 	for _, opt := range opts {
 		opt(w, &resp)
 	}
-	writeJSON(w, status, resp)
+	writeJSON(ctx, w, status, resp)
 }
 
-func writeJSON(w http.ResponseWriter, status int, data any) {
+func writeJSON(
+	ctx context.Context,
+	w http.ResponseWriter,
+	status int,
+	data any,
+) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		slog.Error("Failed to write JSON response", "error", err)
+		slog.ErrorContext(ctx, "Failed to write JSON response", "error", err)
 	}
 }
 
 func (s *API) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
+	writeJSON(r.Context(), w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
 }
@@ -191,36 +213,52 @@ func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 
 	monitors, err := s.monitorStore.ListByUser(r.Context(), uid)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 	res := make([]MonitorResponse, len(monitors))
 	for i, m := range monitors {
 		res[i] = toMonitorResponse(m)
 	}
-	writeJSON(w, http.StatusOK, res)
+	writeJSON(r.Context(), w, http.StatusOK, res)
 }
 
 func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
+	slog.InfoContext(r.Context(), "correlated log")
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, withMessage("invalid monitor id"))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid monitor id"),
+		)
 		return
 	}
 
 	m, err := s.monitorStore.Get(r.Context(), uid, mid)
 	if errors.Is(err, monitor.ErrNotFound) {
-		writeError(w, http.StatusNotFound)
+		writeError(r.Context(), w, http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toMonitorResponse(m))
+	writeJSON(r.Context(), w, http.StatusOK, toMonitorResponse(m))
 }
 
 func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
@@ -228,17 +266,27 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, withMessage("invalid monitor id"))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid monitor id"),
+		)
 		return
 	}
 
 	_, err = s.monitorStore.Get(r.Context(), uid, mid)
 	if errors.Is(err, monitor.ErrNotFound) {
-		writeError(w, http.StatusNotFound)
+		writeError(r.Context(), w, http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
@@ -246,6 +294,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 	horizon, err := time.ParseDuration(horizonStr)
 	if err != nil || horizon <= 0 {
 		writeError(
+			r.Context(),
 			w,
 			http.StatusBadRequest,
 			withMessage("invalid horizon, must be a positive duration"),
@@ -254,9 +303,19 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := s.now().Truncate(time.Hour)
-	forecasts, err := s.forecastStore.ListForMonitorInRange(r.Context(), mid, now, now.Add(horizon))
+	forecasts, err := s.forecastStore.ListForMonitorInRange(
+		r.Context(),
+		mid,
+		now,
+		now.Add(horizon),
+	)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
@@ -273,7 +332,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 			IsFogLikely:      f.IsFogLikely(),
 		}
 	}
-	writeJSON(w, http.StatusOK, res)
+	writeJSON(r.Context(), w, http.StatusOK, res)
 }
 
 func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
@@ -286,8 +345,14 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		slog.Debug("failed to decode request body", "error", err)
+		slog.DebugContext(
+			r.Context(),
+			"failed to decode request body",
+			"error",
+			err,
+		)
 		writeError(
+			r.Context(),
 			w,
 			http.StatusBadRequest,
 			withMessage("invalid request body"),
@@ -307,11 +372,17 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		s.monitorLimit,
 	)
 	if errors.Is(err, monitor.ErrLimitReached) {
-		writeError(w, http.StatusUnprocessableEntity, withMessage("monitor limit reached"))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusUnprocessableEntity,
+			withMessage("monitor limit reached"),
+		)
 		return
 	}
 	if errors.Is(err, monitor.ErrDuplicateLocation) {
 		writeError(
+			r.Context(),
 			w,
 			http.StatusConflict,
 			withMessage("a monitor for this location already exists"),
@@ -319,26 +390,37 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
 	created, err := s.monitorStore.Create(r.Context(), m)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
-	slog.Info(
+	slog.InfoContext(
+		r.Context(),
 		"monitor created",
 		"monitor_id", created.ID,
 		"user_id", uid,
 		"location", created.Location.Name,
 	)
 
-	writeJSON(w, http.StatusCreated, toMonitorResponse(created))
+	writeJSON(r.Context(), w, http.StatusCreated, toMonitorResponse(created))
 
-	s.onRefreshNeeded(created)
+	s.onRefreshNeeded(r.Context(), created)
 }
 
 func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
@@ -348,6 +430,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 		mid, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
 			writeError(
+				r.Context(),
 				w,
 				http.StatusBadRequest,
 				withMessage("invalid monitor id"),
@@ -357,11 +440,16 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 
 		m, err := s.monitorStore.Get(r.Context(), uid, mid)
 		if errors.Is(err, monitor.ErrNotFound) {
-			writeError(w, http.StatusNotFound)
+			writeError(r.Context(), w, http.StatusNotFound)
 			return
 		}
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, logCause(err))
+			writeError(
+				r.Context(),
+				w,
+				http.StatusInternalServerError,
+				logCause(r.Context(), err),
+			)
 			return
 		}
 
@@ -373,24 +461,30 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 
 		updated, err := s.monitorStore.Update(r.Context(), m)
 		if errors.Is(err, monitor.ErrNotFound) {
-			writeError(w, http.StatusNotFound)
+			writeError(r.Context(), w, http.StatusNotFound)
 			return
 		}
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, logCause(err))
+			writeError(
+				r.Context(),
+				w,
+				http.StatusInternalServerError,
+				logCause(r.Context(), err),
+			)
 			return
 		}
 
-		slog.Info(
+		slog.InfoContext(
+			r.Context(),
 			"monitor status changed",
 			"monitor_id", updated.ID,
 			"is_active", updated.IsActive,
 		)
 
-		writeJSON(w, http.StatusOK, toMonitorResponse(updated))
+		writeJSON(r.Context(), w, http.StatusOK, toMonitorResponse(updated))
 
 		if activate {
-			s.onRefreshNeeded(updated)
+			s.onRefreshNeeded(r.Context(), updated)
 		}
 	}
 }
@@ -400,49 +494,81 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, withMessage("invalid monitor id"))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusBadRequest,
+			withMessage("invalid monitor id"),
+		)
 		return
 	}
 
 	err = s.monitorStore.Delete(r.Context(), uid, mid)
 	if errors.Is(err, monitor.ErrNotFound) {
-		writeError(w, http.StatusNotFound)
+		writeError(r.Context(), w, http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
-	slog.Info("monitor deleted", "monitor_id", mid, "user_id", uid)
+	slog.InfoContext(
+		r.Context(),
+		"monitor deleted",
+		"monitor_id",
+		mid,
+		"user_id",
+		uid,
+	)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 	u, plainRefreshToken, err := user.New()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 	created, err := s.userStore.Create(r.Context(), u)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
 	accessToken, err := s.issuer.Issue(created.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
-	slog.Info("user registered", "user_id", created.ID)
+	slog.InfoContext(r.Context(), "user registered", "user_id", created.ID)
 
 	type response struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-	writeJSON(w, http.StatusCreated, response{
+	writeJSON(r.Context(), w, http.StatusCreated, response{
 		AccessToken:  accessToken,
 		RefreshToken: plainRefreshToken,
 	})
@@ -454,8 +580,14 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		slog.Debug("failed to decode request body", "error", err)
+		slog.DebugContext(
+			r.Context(),
+			"failed to decode request body",
+			"error",
+			err,
+		)
 		writeError(
+			r.Context(),
 			w,
 			http.StatusBadRequest,
 			withMessage("invalid request body"),
@@ -467,25 +599,36 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
 			writeError(
+				r.Context(),
 				w,
 				http.StatusUnauthorized,
 				withMessage("invalid refresh token"),
 			)
 			return
 		}
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 	accessToken, err := s.issuer.Issue(u.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
 	type response struct {
 		AccessToken string `json:"access_token"`
 	}
-	writeJSON(w, http.StatusOK, response{
+	writeJSON(r.Context(), w, http.StatusOK, response{
 		AccessToken: accessToken,
 	})
 }
@@ -496,8 +639,9 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 	}
 	var p Params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		slog.Debug("decoding push token", "error", err)
+		slog.DebugContext(r.Context(), "decoding push token", "error", err)
 		writeError(
+			r.Context(),
 			w,
 			http.StatusBadRequest,
 			withMessage("invalid request body"),
@@ -507,8 +651,9 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 
 	_, err := hex.DecodeString(p.PushToken)
 	if err != nil {
-		slog.Debug("decoding push token hex", "error", err)
+		slog.DebugContext(r.Context(), "decoding push token hex", "error", err)
 		writeError(
+			r.Context(),
 			w,
 			http.StatusBadRequest,
 			withMessage("invalid push token format"),
@@ -519,16 +664,21 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
 	updated, err := s.userStore.UpdatePushToken(r.Context(), uid, p.PushToken)
 	if errors.Is(err, user.ErrNotFound) {
-		writeError(w, http.StatusNotFound)
+		writeError(r.Context(), w, http.StatusNotFound)
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, logCause(err))
+		writeError(
+			r.Context(),
+			w,
+			http.StatusInternalServerError,
+			logCause(r.Context(), err),
+		)
 		return
 	}
 
-	slog.Info("push token updated", "user_id", updated.ID)
-	writeJSON(w, http.StatusOK, map[string]string{
+	slog.InfoContext(r.Context(), "push token updated", "user_id", updated.ID)
+	writeJSON(r.Context(), w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
 }

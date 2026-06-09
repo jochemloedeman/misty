@@ -20,7 +20,11 @@ type MonitorCounter interface {
 }
 
 type LocationChecker interface {
-	LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error)
+	LocationExistsByUser(
+		ctx context.Context,
+		userID uuid.UUID,
+		lat, lon float64,
+	) (bool, error)
 }
 
 type MonitorValidator interface {
@@ -112,7 +116,12 @@ func NewMonitor(
 		return Monitor{}, ErrLimitReached
 	}
 
-	exists, err := validator.LocationExistsByUser(ctx, userID, location.Lat, location.Lon)
+	exists, err := validator.LocationExistsByUser(
+		ctx,
+		userID,
+		location.Lat,
+		location.Lon,
+	)
 	if err != nil {
 		return Monitor{}, fmt.Errorf("checking duplicate location: %w", err)
 	}
@@ -189,7 +198,9 @@ func (m Monitor) Activate() Monitor {
 	return m
 }
 
-func (m Monitor) reconcileExistingRiskWindow(newWindow *RiskWindow) (Monitor, RiskWindowChange) {
+func (m Monitor) reconcileExistingRiskWindow(
+	newWindow *RiskWindow,
+) (Monitor, RiskWindowChange) {
 	if newWindow.Start.Equal(m.RiskWindow.Start) &&
 		newWindow.End.Equal(m.RiskWindow.End) {
 		return m, RiskWindowChange{RiskWindow: m.RiskWindow}

@@ -36,7 +36,7 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				writeError(w, http.StatusUnauthorized,
+				writeError(r.Context(), w, http.StatusUnauthorized,
 					withHeader("WWW-Authenticate", wwwAuthMissingHeader),
 					withMessage("missing authorization header"),
 				)
@@ -44,7 +44,7 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 			}
 			token, ok := strings.CutPrefix(authHeader, "Bearer ")
 			if !ok {
-				writeError(w, http.StatusUnauthorized,
+				writeError(r.Context(), w, http.StatusUnauthorized,
 					withHeader("WWW-Authenticate", wwwAuthInvalidScheme),
 					withMessage("authorization header must use Bearer scheme"),
 				)
@@ -54,12 +54,12 @@ func RequireUser(verifier TokenVerifier) func(http.Handler) http.Handler {
 			claims, err := verifier.Verify(token)
 			if err != nil {
 				if errors.Is(err, auth.ErrExpiredToken) {
-					writeError(w, http.StatusUnauthorized,
+					writeError(r.Context(), w, http.StatusUnauthorized,
 						withHeader("WWW-Authenticate", wwwAuthExpiredToken),
 						withMessage("token has expired"),
 					)
 				} else {
-					writeError(w, http.StatusUnauthorized,
+					writeError(r.Context(), w, http.StatusUnauthorized,
 						withHeader("WWW-Authenticate", wwwAuthInvalidToken),
 						withMessage("invalid token"),
 					)
@@ -105,11 +105,11 @@ func RequestLogger(next http.Handler) http.Handler {
 		}
 		switch {
 		case writer.StatusCode >= http.StatusInternalServerError:
-			slog.Error("completed", attrs...)
+			slog.ErrorContext(r.Context(), "completed", attrs...)
 		case writer.StatusCode >= http.StatusBadRequest:
-			slog.Warn("completed", attrs...)
+			slog.WarnContext(r.Context(), "completed", attrs...)
 		default:
-			slog.Info("completed", attrs...)
+			slog.InfoContext(r.Context(), "completed", attrs...)
 		}
 	})
 }

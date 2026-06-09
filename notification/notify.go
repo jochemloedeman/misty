@@ -23,7 +23,11 @@ type Notifier struct {
 	now     func() time.Time
 }
 
-func NewNotifier(outbox outbox, deliver deliver, now func() time.Time) *Notifier {
+func NewNotifier(
+	outbox outbox,
+	deliver deliver,
+	now func() time.Time,
+) *Notifier {
 	return &Notifier{
 		outbox:  outbox,
 		deliver: deliver,
@@ -37,19 +41,31 @@ func (n *Notifier) Notify(ctx context.Context) error {
 		return err
 	}
 
-	slog.Debug("delivering notifications", "count", len(notifications))
+	slog.DebugContext(
+		ctx,
+		"delivering notifications",
+		"count",
+		len(notifications),
+	)
 
 	var errs []error
 	for _, notif := range notifications {
 		if err := n.deliver(ctx, notif); err != nil {
-			errs = append(errs, fmt.Errorf("deliver notification %s: %w", notif.ID, err))
+			errs = append(
+				errs,
+				fmt.Errorf("deliver notification %s: %w", notif.ID, err),
+			)
 			continue
 		}
 		if err := n.outbox.MarkSent(ctx, notif.ID, n.now()); err != nil {
-			errs = append(errs, fmt.Errorf("mark notification %s as sent: %w", notif.ID, err))
+			errs = append(
+				errs,
+				fmt.Errorf("mark notification %s as sent: %w", notif.ID, err),
+			)
 			continue
 		}
-		slog.Info(
+		slog.InfoContext(
+			ctx,
 			"notification delivered",
 			"notification_id",
 			notif.ID,
