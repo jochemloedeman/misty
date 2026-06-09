@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -125,13 +126,36 @@ func traceRefresh(
 	refresher *monitor.Refresher,
 	m monitor.Monitor,
 	horizon monitor.ForecastHorizon,
-) error {
+) (err error) {
 	ctx, span := tracer.Start(ctx, "refresh", trace.WithAttributes(
 		attribute.String("monitor.id", m.ID.String()),
 		attribute.String("monitor.location", m.Location.Name),
 	))
-	defer span.End()
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 	return refresher.Refresh(ctx, m, horizon)
+}
+
+func traceRefreshAll(
+	ctx context.Context,
+	store monitor.MonitorStore,
+	refresher *monitor.Refresher,
+	horizon monitor.ForecastHorizon,
+) (err error) {
+	ctx, span := tracer.Start(ctx, "refresh.all")
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+	return refreshAllMonitors(ctx, store, refresher, horizon)
 }
 
 func refreshAllMonitors(
@@ -184,11 +208,9 @@ func runRefreshLoop(
 	for {
 		select {
 		case <-ticker.C:
-			ctx, span := tracer.Start(ctx, "refresh.all")
-			if err := refreshAllMonitors(ctx, monitorStore, refresher, horizon); err != nil {
+			if err := traceRefreshAll(ctx, monitorStore, refresher, horizon); err != nil {
 				slog.ErrorContext(ctx, "refresh error", "error", err)
 			}
-			span.End()
 		case request := <-dispatcher.Incoming():
 			ctx := request.Context(ctx)
 			if err := traceRefresh(
