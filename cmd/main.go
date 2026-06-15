@@ -24,6 +24,7 @@ import (
 	"github.com/jochemloedeman/misty/notification/apple"
 	"github.com/jochemloedeman/misty/user"
 	"github.com/jochemloedeman/misty/weather"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/token"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -31,6 +32,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -40,13 +42,36 @@ const (
 	maxBodySize     = 4 << 10
 )
 
-var tracer = otel.Tracer("github.com/jochemloedeman/misty/cmd")
+var (
+	tracer             = otel.Tracer("github.com/jochemloedeman/misty/cmd")
+	meter              = otel.Meter("github.com/jochemloedeman/misty/cmd")
+	durationBoundaries = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+)
 
 func requestFilter(r *http.Request) bool {
 	if slices.Contains([]string{"/health", "/metrics"}, r.URL.Path) {
 		return false
 	}
 	return true
+}
+
+type metrics struct {
+	refreshDuration metric.Float64Histogram
+}
+
+func newMetrics() (*metrics, error) {
+	var err, e error
+	refreshDuration, e := meter.Float64Histogram(
+		"refresh.duration",
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(durationBoundaries...),
+	)
+	if e != nil {
+		err = errors.Join(err, e)
+	}
+	return &metrics{
+		refreshDuration: refreshDuration,
+	}, err
 }
 
 func runServer(
@@ -85,6 +110,7 @@ func runServer(
 	mux.HandleFunc("POST /register", routes.Register)
 	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
 	mux.HandleFunc("GET /health", routes.HealthCheck)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	instrumented := otelhttp.NewHandler(
 		mux,
@@ -146,9 +172,16 @@ func traceRefreshAll(
 	store monitor.MonitorStore,
 	refresher *monitor.Refresher,
 	horizon monitor.ForecastHorizon,
+	metrics *metrics,
 ) (err error) {
 	ctx, span := tracer.Start(ctx, "refresh.all")
+	start := time.Now()
 	defer func() {
+		metrics.refreshDuration.Record(
+			ctx,
+			time.Since(start).Seconds(),
+			metric.WithAttributes(attribute.Bool("success", err == nil)),
+		)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -201,6 +234,7 @@ func runRefreshLoop(
 	interval time.Duration,
 	horizon monitor.ForecastHorizon,
 	clock clock.RealClock,
+	metrics *metrics,
 ) error {
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
@@ -208,7 +242,7 @@ func runRefreshLoop(
 	for {
 		select {
 		case <-ticker.C:
-			if err := traceRefreshAll(ctx, monitorStore, refresher, horizon); err != nil {
+			if err := traceRefreshAll(ctx, monitorStore, refresher, horizon, metrics); err != nil {
 				slog.ErrorContext(ctx, "refresh error", "error", err)
 			}
 		case request := <-dispatcher.Incoming():
@@ -290,6 +324,11 @@ func run() (err error) {
 	defer func() {
 		err = errors.Join(err, otelShutdown(ctx))
 	}()
+
+	metrics, err := newMetrics()
+	if err != nil {
+		return fmt.Errorf("creating metrics: %w", err)
+	}
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
@@ -407,6 +446,7 @@ func run() (err error) {
 			cfg.RefreshInterval,
 			cfg.ForecastHorizon,
 			clk,
+			metrics,
 		)
 	})
 
