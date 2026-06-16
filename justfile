@@ -1,4 +1,5 @@
-compose_local := "docker compose -f compose.yaml -f compose.local.yaml"
+compose_local := "docker compose -f compose.yaml -f compose.local.yaml -f compose.observability.yaml"
+compose_obs := "docker compose -f compose.yaml -f compose.observability.yaml"
 pass := "pass-cli run --env-file .env --"
 
 [group('local')]

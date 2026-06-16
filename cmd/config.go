@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	defaultReconcileMinutes = 60
-	defaultForecastSteps    = 16
-	defaultMonitorLimit     = 5
+	defaultRefreshMinutes = 60
+	defaultForecastSteps  = 16
+	defaultMonitorLimit   = 5
 )
 
 type apnsConfig struct {
@@ -26,21 +26,22 @@ type apnsConfig struct {
 }
 
 type config struct {
-	DatabaseURL       string
-	Port              string
-	SigningSecrets    [][]byte
-	LogLevel          slog.Level
-	ReconcileInterval time.Duration
-	ForecastHorizon   monitor.ForecastHorizon
-	APNS              *apnsConfig
-	MonitorLimit      int
+	DatabaseURL     string
+	Port            string
+	SigningSecrets  [][]byte
+	LogLevel        slog.Level
+	RefreshInterval time.Duration
+	ForecastHorizon monitor.ForecastHorizon
+	APNS            *apnsConfig
+	MonitorLimit    int
+	ConsoleLog      bool
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
 	cfg := config{
-		Port:              "8080",
-		LogLevel:          slog.LevelInfo,
-		ReconcileInterval: defaultReconcileMinutes * time.Minute,
+		Port:            "8080",
+		LogLevel:        slog.LevelInfo,
+		RefreshInterval: defaultRefreshMinutes * time.Minute,
 		ForecastHorizon: monitor.ForecastHorizon{
 			Interval: time.Hour,
 			Steps:    defaultForecastSteps,
@@ -67,11 +68,7 @@ func loadConfig() (config, error) { //nolint:cyclop
 		return config{}, fmt.Errorf("POSTGRES_USER is required")
 	}
 
-	cfg.DatabaseURL = fmt.Sprintf(
-		"postgresql://%s:%s@db:5432/postgres",
-		postgresUser,
-		postgresPassword,
-	)
+	cfg.DatabaseURL = fmt.Sprintf("postgresql://%s:%s@db:5432/postgres", postgresUser, postgresPassword)
 
 	signingSecretFile := os.Getenv("SIGNING_SECRET_FILE")
 	if signingSecretFile == "" {
@@ -102,26 +99,18 @@ func loadConfig() (config, error) { //nolint:cyclop
 		cfg.LogLevel = level
 	}
 
-	if v := os.Getenv("RECONCILE_INTERVAL"); v != "" {
+	if v := os.Getenv("REFRESH_INTERVAL"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return config{}, fmt.Errorf(
-				"invalid RECONCILE_INTERVAL %q: %w",
-				v,
-				err,
-			)
+			return config{}, fmt.Errorf("invalid REFRESH_INTERVAL %q: %w", v, err)
 		}
-		cfg.ReconcileInterval = d
+		cfg.RefreshInterval = d
 	}
 
 	if v := os.Getenv("FORECAST_GRANULARITY"); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return config{}, fmt.Errorf(
-				"invalid FORECAST_GRANULARITY %q: %w",
-				v,
-				err,
-			)
+			return config{}, fmt.Errorf("invalid FORECAST_GRANULARITY %q: %w", v, err)
 		}
 		cfg.ForecastHorizon.Interval = d
 	}
@@ -165,6 +154,14 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Topic:       topic,
 			Development: os.Getenv("APNS_DEVELOPMENT") == "true",
 		}
+	}
+
+	if v := os.Getenv("CONSOLE_LOG"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid CONSOLE_LOG %q: %w", v, err)
+		}
+		cfg.ConsoleLog = b
 	}
 
 	return cfg, nil

@@ -20,7 +20,11 @@ type MonitorCounter interface {
 }
 
 type LocationChecker interface {
-	LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error)
+	LocationExistsByUser(
+		ctx context.Context,
+		userID uuid.UUID,
+		lat, lon float64,
+	) (bool, error)
 }
 
 type MonitorValidator interface {
@@ -49,7 +53,7 @@ const (
 )
 
 type RiskWindowChange struct {
-	Type  RiskWindowChangeType
+	Type       RiskWindowChangeType
 	RiskWindow *RiskWindow
 }
 
@@ -90,10 +94,10 @@ type ForecastHorizon struct {
 }
 
 type Monitor struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	IsActive    bool
-	Location    Location
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	IsActive   bool
+	Location   Location
 	RiskWindow *RiskWindow
 }
 
@@ -189,7 +193,9 @@ func (m Monitor) Activate() Monitor {
 	return m
 }
 
-func (m Monitor) reconcileExistingRiskWindow(newWindow *RiskWindow) (Monitor, RiskWindowChange) {
+func (m Monitor) reconcileExistingRiskWindow(
+	newWindow *RiskWindow,
+) (Monitor, RiskWindowChange) {
 	if newWindow.Start.Equal(m.RiskWindow.Start) &&
 		newWindow.End.Equal(m.RiskWindow.End) {
 		return m, RiskWindowChange{RiskWindow: m.RiskWindow}

@@ -16,7 +16,11 @@ type Fog struct {
 	SentAt       time.Time
 }
 
-func New(recipientID uuid.UUID, message, locationName string, fogStart, fogEnd time.Time) Fog {
+func New(
+	recipientID uuid.UUID,
+	message, locationName string,
+	fogStart, fogEnd time.Time,
+) Fog {
 	return Fog{
 		ID:           uuid.New(),
 		RecipientID:  recipientID,

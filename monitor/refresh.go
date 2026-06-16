@@ -2,14 +2,18 @@ package monitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/notification"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
+
+var meter = otel.Meter("github.com/jochemloedeman/misty/monitor")
 
 const (
 	fogDewPointSpread    = 2.5  // max °C difference between temperature and dew point
@@ -92,45 +96,41 @@ type NotificationOutbox interface {
 
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
 
+type metrics struct {
+	reconciled metric.Int64Counter
+}
+
+func newMetrics() (*metrics, error) {
+	reconciled, err := meter.Int64Counter(
+		"monitors.reconciled",
+		metric.WithDescription("Number of monitor risk-window reconciliations by change type"),
+		metric.WithUnit("{monitor}"),
+	)
+	return &metrics{reconciled: reconciled}, err
+}
+
 type Refresher struct {
-	clock        Clock
-	forecaster   Forecaster
-	monitorStore MonitorStore
-	runAtom      RunAtomically
-	refreshC     chan Monitor
+	clock      Clock
+	forecaster Forecaster
+	runAtom    RunAtomically
+	metrics    *metrics
 }
 
 func NewRefresher(
 	forecaster Forecaster,
-	monitorStore MonitorStore,
 	runAtom RunAtomically,
 	clock Clock,
-) *Refresher {
+) (*Refresher, error) {
+	m, err := newMetrics()
+	if err != nil {
+		return nil, fmt.Errorf("create monitor metrics: %w", err)
+	}
 	return &Refresher{
-		forecaster:   forecaster,
-		monitorStore: monitorStore,
-		runAtom:      runAtom,
-		clock:        clock,
-		refreshC:     make(chan Monitor, 8),
-	}
-}
-
-
-func (r *Refresher) RefreshC() <-chan Monitor {
-	return r.refreshC
-}
-
-func (r *Refresher) RequestRefresh(m Monitor) {
-	select {
-	case r.refreshC <- m:
-		slog.Debug("immediate refresh requested", "monitor_id", m.ID)
-	default:
-		slog.Warn("immediate refresh dropped, buffer full", "monitor_id", m.ID)
-	}
-}
-
-func (r *Refresher) RefreshOne(ctx context.Context, m Monitor, horizon ForecastHorizon) error {
-	return r.refresh(ctx, m, horizon)
+		forecaster: forecaster,
+		runAtom:    runAtom,
+		clock:      clock,
+		metrics:    m,
+	}, nil
 }
 
 type AtomicStores struct {
@@ -139,40 +139,7 @@ type AtomicStores struct {
 	Outbox        NotificationOutbox
 }
 
-func (r *Refresher) RefreshAll(
-	ctx context.Context,
-	horizon ForecastHorizon,
-) error {
-	monitors, err := r.monitorStore.ListAllActive(ctx)
-	if err != nil {
-		return fmt.Errorf("list active monitors: %w", err)
-	}
-
-	slog.Info("refresh started", "monitor_count", len(monitors))
-
-	for i := range monitors {
-		err := r.refresh(ctx, monitors[i], horizon)
-		if err == nil {
-			continue
-		}
-		if _, ok := errors.AsType[*Transient](err); ok {
-			slog.Warn(
-				"transient error refreshing monitor",
-				"monitor_id",
-				monitors[i].ID,
-				"error",
-				err,
-			)
-			continue
-		}
-		return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
-	}
-
-	slog.Info("refresh completed", "monitor_count", len(monitors))
-	return nil
-}
-
-func (r *Refresher) refresh(
+func (r *Refresher) Refresh(
 	ctx context.Context,
 	monitor Monitor,
 	horizon ForecastHorizon,
@@ -185,11 +152,13 @@ func (r *Refresher) refresh(
 
 	monitor, change := monitor.ReconcileRiskWindow(now, forecasts, horizon.Interval)
 
-	slog.Info("alert reconciled",
+	slog.InfoContext(ctx, "alert reconciled",
 		"monitor_id", monitor.ID,
 		"location", monitor.Location.Name,
 		"change_type", change.Type,
 	)
+
+	r.metrics.reconciled.Add(ctx, 1, metric.WithAttributes(attribute.String("change_type", change.Type.String())))
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, change)
@@ -209,18 +178,20 @@ func persist(
 
 	if change.NeedsNotification() {
 		msg := fogAlertMessage(monitor)
-		notif := notification.New(monitor.UserID, msg, monitor.Location.Name, change.RiskWindow.Start, change.RiskWindow.End)
+		notif := notification.New(
+			monitor.UserID,
+			msg,
+			monitor.Location.Name,
+			change.RiskWindow.Start,
+			change.RiskWindow.End,
+		)
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
-		slog.Info(
-			"notification queued",
-			"monitor_id",
-			monitor.ID,
-			"user_id",
-			monitor.UserID,
-			"message",
-			msg,
+		slog.InfoContext(ctx, "notification queued",
+			"monitor_id", monitor.ID,
+			"user_id", monitor.UserID,
+			"message", msg,
 		)
 	}
 
@@ -228,7 +199,7 @@ func persist(
 		if _, err := s.MonitorStore.Update(ctx, monitor); err != nil {
 			return fmt.Errorf("update alert: %w", err)
 		}
-		slog.Debug("monitor updated", "monitor_id", monitor.ID)
+		slog.DebugContext(ctx, "monitor updated", "monitor_id", monitor.ID)
 	}
 
 	return nil

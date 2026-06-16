@@ -60,7 +60,11 @@ func (s *Store) Ensure(ctx context.Context, u User) error {
 	return nil
 }
 
-func (s *Store) UpdatePushToken(ctx context.Context, userID uuid.UUID, pushToken string) (User, error) {
+func (s *Store) UpdatePushToken(
+	ctx context.Context,
+	userID uuid.UUID,
+	pushToken string,
+) (User, error) {
 	dbUser, err := s.queries.UpdatePushToken(ctx, sqlc.UpdatePushTokenParams{
 		ID:        dbUUID(userID),
 		PushToken: dbText(pushToken),

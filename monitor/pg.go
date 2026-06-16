@@ -82,7 +82,10 @@ func (s *pgMonitorStore) ListAllActive(ctx context.Context) ([]Monitor, error) {
 	return monitors, nil
 }
 
-func (s *pgMonitorStore) ListByUser(ctx context.Context, userID uuid.UUID) ([]Monitor, error) {
+func (s *pgMonitorStore) ListByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]Monitor, error) {
 	rows, err := s.queries.ListMonitors(ctx, dbUUID(userID))
 	if err != nil {
 		return nil, fmt.Errorf("list monitors: %w", err)
@@ -176,7 +179,10 @@ func (s *pgMonitorStore) Delete(
 	return nil
 }
 
-func (s *pgMonitorStore) CountByUser(ctx context.Context, userID uuid.UUID) (int, error) {
+func (s *pgMonitorStore) CountByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) (int, error) {
 	count, err := s.queries.CountMonitorsByUser(ctx, dbUUID(userID))
 	if err != nil {
 		return 0, fmt.Errorf("count monitors: %w", err)
@@ -184,12 +190,19 @@ func (s *pgMonitorStore) CountByUser(ctx context.Context, userID uuid.UUID) (int
 	return int(count), nil
 }
 
-func (s *pgMonitorStore) LocationExistsByUser(ctx context.Context, userID uuid.UUID, lat, lon float64) (bool, error) {
-	exists, err := s.queries.ExistsMonitorByUserAndLocation(ctx, sqlc.ExistsMonitorByUserAndLocationParams{
-		UserID:    dbUUID(userID),
-		Latitude:  lat,
-		Longitude: lon,
-	})
+func (s *pgMonitorStore) LocationExistsByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	lat, lon float64,
+) (bool, error) {
+	exists, err := s.queries.ExistsMonitorByUserAndLocation(
+		ctx,
+		sqlc.ExistsMonitorByUserAndLocationParams{
+			UserID:    dbUUID(userID),
+			Latitude:  lat,
+			Longitude: lon,
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("check duplicate location: %w", err)
 	}

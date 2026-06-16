@@ -6,10 +6,9 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jochemloedeman/misty/notification"
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
-
-	"github.com/jochemloedeman/misty/notification"
 )
 
 // TokenResolver looks up an APNs device token for a given user ID.
@@ -29,9 +28,7 @@ func NewDeliverer(
 			return fmt.Errorf("resolve push token for %s: %w", notif.RecipientID, err)
 		}
 		if deviceToken == "" {
-			slog.Warn("no push token for user, skipping",
-				"recipient_id", notif.RecipientID,
-			)
+			slog.WarnContext(ctx, "no push token for user, skipping", "recipient_id", notif.RecipientID)
 			return nil
 		}
 
@@ -52,9 +49,7 @@ func NewDeliverer(
 			return fmt.Errorf("apns push: %w", err)
 		}
 		if !resp.Sent() {
-			return fmt.Errorf("apns rejected notification %s: %d %s",
-				notif.ID, resp.StatusCode, resp.Reason,
-			)
+			return fmt.Errorf("apns rejected notification %s: %d %s", notif.ID, resp.StatusCode, resp.Reason)
 		}
 
 		return nil

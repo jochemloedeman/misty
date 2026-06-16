@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/jochemloedeman/misty/db/sqlc"
 )
 
@@ -21,7 +20,10 @@ func NewPGTokenResolver(q *sqlc.Queries) *PGTokenResolver {
 	return &PGTokenResolver{queries: q}
 }
 
-func (r *PGTokenResolver) PushToken(ctx context.Context, userID uuid.UUID) (string, error) {
+func (r *PGTokenResolver) PushToken(
+	ctx context.Context,
+	userID uuid.UUID,
+) (string, error) {
 	token, err := r.queries.GetPushTokenByUserID(ctx, pgtype.UUID{Bytes: userID, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

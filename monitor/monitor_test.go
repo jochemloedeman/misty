@@ -53,7 +53,12 @@ func (s stubValidator) CountByUser(context.Context, uuid.UUID) (int, error) {
 	return s.count, s.countErr
 }
 
-func (s stubValidator) LocationExistsByUser(context.Context, uuid.UUID, float64, float64) (bool, error) {
+func (s stubValidator) LocationExistsByUser(
+	context.Context,
+	uuid.UUID,
+	float64,
+	float64,
+) (bool, error) {
 	return s.exists, s.existsErr
 }
 
@@ -153,7 +158,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:  Unchanged,
+				Type:       Unchanged,
 				RiskWindow: nil,
 			},
 		},
@@ -184,7 +189,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:  Revoked,
+				Type:       Revoked,
 				RiskWindow: nil,
 			},
 		},
@@ -313,7 +318,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:  Revoked,
+				Type:       Revoked,
 				RiskWindow: nil,
 			},
 		},
@@ -344,7 +349,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:  Revoked,
+				Type:       Revoked,
 				RiskWindow: nil,
 			},
 		},
@@ -490,25 +495,12 @@ func TestReconcileRiskWindow(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotMonitor, gotChange := tc.monitor.ReconcileRiskWindow(
-				defaultTime,
-				tc.forecasts,
-				time.Hour,
-			)
+			gotMonitor, gotChange := tc.monitor.ReconcileRiskWindow(defaultTime, tc.forecasts, time.Hour)
 			if diff := cmp.Diff(tc.expected, gotChange); diff != "" {
-				t.Errorf(
-					"ReconcileRiskWindow() RiskWindowChange mismatch (-want +got):\n%s",
-					diff,
-				)
+				t.Errorf("ReconcileRiskWindow() RiskWindowChange mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(
-				tc.expected.RiskWindow,
-				gotMonitor.RiskWindow,
-			); diff != "" {
-				t.Errorf(
-					"ReconcileRiskWindow() Monitor.RiskWindow mismatch (-want +got):\n%s",
-					diff,
-				)
+			if diff := cmp.Diff(tc.expected.RiskWindow, gotMonitor.RiskWindow); diff != "" {
+				t.Errorf("ReconcileRiskWindow() Monitor.RiskWindow mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
