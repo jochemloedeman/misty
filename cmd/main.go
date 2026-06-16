@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	shutdownTimeout = 10 * time.Second
+	shutdownTimeout = 5 * time.Second
 	maxBodySize     = 4 << 10
 )
 
@@ -48,10 +48,11 @@ var (
 	tracer             = otel.Tracer("github.com/jochemloedeman/misty/cmd")
 	meter              = otel.Meter("github.com/jochemloedeman/misty/cmd")
 	durationBoundaries = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+	skipPaths          = []string{"/health", "/metrics"}
 )
 
 func requestFilter(r *http.Request) bool {
-	if slices.Contains([]string{"/health", "/metrics"}, r.URL.Path) {
+	if slices.Contains(skipPaths, r.URL.Path) {
 		return false
 	}
 	return true
@@ -317,17 +318,11 @@ func checkHealth(port string) {
 func run() (err error) {
 	cfg, err := loadConfig()
 	if err != nil {
-		slog.ErrorContext(
-			context.Background(),
-			"invalid configuration",
-			"error",
-			err,
-		)
-		os.Exit(1)
+		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	slog.SetDefault(slog.New(fanout{
-		otelslog.NewHandler("misty"),
+		otelslog.NewHandler("github.com/jochemloedeman/misty"),
 		slog.NewTextHandler(
 			os.Stderr,
 			&slog.HandlerOptions{Level: cfg.LogLevel},
@@ -350,10 +345,12 @@ func run() (err error) {
 
 	otelShutdown, err := setupOTelSDK(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to setup open telemtry: %w", err)
+		return fmt.Errorf("failed to setup open telemetry: %w", err)
 	}
 	defer func() {
-		err = errors.Join(err, otelShutdown(ctx))
+		sctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		err = errors.Join(err, otelShutdown(sctx))
 	}()
 
 	metrics, err := newMetrics()
@@ -395,14 +392,12 @@ func run() (err error) {
 		clk,
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create refresher", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("creating refresher: %w", err)
 	}
 
 	keyRing, err := auth.NewKeyRing(cfg.SigningSecrets, clk.Now)
 	if err != nil {
-		slog.ErrorContext(ctx, "invalid key ring configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("creating key ring: %w", err)
 	}
 	forecastStore := monitor.NewForecastStore(queries)
 	routes := api.New(
@@ -419,8 +414,7 @@ func run() (err error) {
 	if cfg.APNS != nil {
 		authKey, err := token.AuthKeyFromFile(cfg.APNS.KeyPath)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid APNs auth key", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("invalid auth key: %w", err)
 		}
 		tok := &token.Token{
 			AuthKey: authKey,
@@ -489,7 +483,6 @@ func run() (err error) {
 	})
 
 	if err := group.Wait(); err != nil {
-		slog.ErrorContext(ctx, "application error", "error", err)
 		return err
 	}
 	return nil

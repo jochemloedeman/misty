@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	alloyEndpoint string = "alloy:4317"
-	serviceName   string = "app"
+	alloyEndpoint = "alloy:4317"
+	serviceName   = "misty"
 )
 
 func setupOTelSDK(ctx context.Context) (func(context.Context) error, error) {

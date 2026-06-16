@@ -16,8 +16,7 @@ type RefreshRequest struct {
 }
 
 func (r RefreshRequest) Context(ctx context.Context) context.Context {
-	newCtx := trace.ContextWithSpanContext(ctx, r.spanContext)
-	return newCtx
+	return trace.ContextWithSpanContext(ctx, r.spanContext)
 }
 
 type RefreshDispatcher struct {

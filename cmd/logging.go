@@ -27,7 +27,7 @@ func (f fanout) Handle(ctx context.Context, r slog.Record) error {
 
 func (f fanout) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newFanout := make(fanout, len(f))
-	for i := range len(f) {
+	for i := range f {
 		newFanout[i] = f[i].WithAttrs(attrs)
 	}
 	return newFanout
@@ -35,7 +35,7 @@ func (f fanout) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (f fanout) WithGroup(name string) slog.Handler {
 	newFanout := make(fanout, len(f))
-	for i := range len(f) {
+	for i := range f {
 		newFanout[i] = f[i].WithGroup(name)
 	}
 	return newFanout
