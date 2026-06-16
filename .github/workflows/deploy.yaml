@@ -78,11 +78,12 @@ jobs:
         run: |
           tailscale ssh deploy@"$DEPLOY_HOST" \
             GHCR_TOKEN="$GHCR_TOKEN" bash -s << 'SCRIPT'
+          set -eo pipefail
           echo "$GHCR_TOKEN" | docker login ghcr.io -u github-actions --password-stdin
           cd /opt/misty
           docker compose -f compose.yaml -f compose.observability.yaml pull
           docker logout ghcr.io
           docker compose -f compose.yaml -f compose.observability.yaml up -d --remove-orphans
           docker image prune -f
-          tailscale serve --bg --https=443 http://127.0.0.1:3000
+          tailscale serve --bg --https=8443 http://127.0.0.1:3000
           SCRIPT
