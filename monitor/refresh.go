@@ -8,7 +8,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/notification"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
+
+var meter = otel.Meter("github.com/jochemloedeman/misty/monitor")
 
 const (
 	fogDewPointSpread    = 2.5  // max °C difference between temperature and dew point
@@ -91,22 +96,43 @@ type NotificationOutbox interface {
 
 type RunAtomically func(ctx context.Context, fn func(s AtomicStores) error) error
 
+type metrics struct {
+	reconciled metric.Int64Counter
+}
+
+func newMetrics() (*metrics, error) {
+	reconciled, err := meter.Int64Counter(
+		"monitors.reconciled",
+		metric.WithDescription(
+			"Number of monitor risk-window reconciliations by change type",
+		),
+		metric.WithUnit("{monitor}"),
+	)
+	return &metrics{reconciled: reconciled}, err
+}
+
 type Refresher struct {
 	clock      Clock
 	forecaster Forecaster
 	runAtom    RunAtomically
+	metrics    *metrics
 }
 
 func NewRefresher(
 	forecaster Forecaster,
 	runAtom RunAtomically,
 	clock Clock,
-) *Refresher {
+) (*Refresher, error) {
+	m, err := newMetrics()
+	if err != nil {
+		return nil, fmt.Errorf("create monitor metrics: %w", err)
+	}
 	return &Refresher{
 		forecaster: forecaster,
 		runAtom:    runAtom,
 		clock:      clock,
-	}
+		metrics:    m,
+	}, nil
 }
 
 type AtomicStores struct {
@@ -137,6 +163,10 @@ func (r *Refresher) Refresh(
 		"location", monitor.Location.Name,
 		"change_type", change.Type,
 	)
+
+	r.metrics.reconciled.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("change_type", change.Type.String()),
+	))
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, change)

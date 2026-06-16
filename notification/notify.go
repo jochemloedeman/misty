@@ -11,10 +11,15 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("github.com/jochemloedeman/misty/notification")
+var (
+	tracer = otel.Tracer("github.com/jochemloedeman/misty/notification")
+	meter  = otel.Meter("github.com/jochemloedeman/misty/notification")
+)
 
 type outbox interface {
 	ListUnsent(ctx context.Context) ([]Fog, error)
@@ -23,22 +28,41 @@ type outbox interface {
 
 type deliver func(context.Context, Fog) error
 
+type metrics struct {
+	delivered metric.Int64Counter
+}
+
+func newMetrics() (*metrics, error) {
+	delivered, err := meter.Int64Counter(
+		"notifications.delivered",
+		metric.WithDescription("Number of notification delivery attempts"),
+		metric.WithUnit("{notification}"),
+	)
+	return &metrics{delivered: delivered}, err
+}
+
 type Notifier struct {
 	outbox  outbox
 	deliver func(context.Context, Fog) error
 	now     func() time.Time
+	metrics *metrics
 }
 
 func NewNotifier(
 	outbox outbox,
 	deliver deliver,
 	now func() time.Time,
-) *Notifier {
+) (*Notifier, error) {
+	m, err := newMetrics()
+	if err != nil {
+		return nil, fmt.Errorf("create notification metrics: %w", err)
+	}
 	return &Notifier{
 		outbox:  outbox,
 		deliver: deliver,
 		now:     now,
-	}
+		metrics: m,
+	}, nil
 }
 
 func (n *Notifier) Notify(ctx context.Context) error {
@@ -74,10 +98,13 @@ func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {
 		attribute.String("recipient.id", notif.RecipientID.String()),
 	))
 	defer func() {
+		var attrs []attribute.KeyValue
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
+			attrs = append(attrs, semconv.ErrorTypeKey.String("delivery_failed"))
 		}
+		n.metrics.delivered.Add(ctx, 1, metric.WithAttributes(attrs...))
 		span.End()
 	}()
 

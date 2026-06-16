@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/api"
 	"github.com/jochemloedeman/misty/auth"
@@ -33,6 +34,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -56,7 +58,9 @@ func requestFilter(r *http.Request) bool {
 }
 
 type metrics struct {
-	refreshDuration metric.Float64Histogram
+	refreshDuration   metric.Float64Histogram
+	monitorsRefreshed metric.Int64Gauge
+	usersRefreshed    metric.Int64Gauge
 }
 
 func newMetrics() (*metrics, error) {
@@ -69,8 +73,24 @@ func newMetrics() (*metrics, error) {
 	if e != nil {
 		err = errors.Join(err, e)
 	}
+	monitorsRefreshed, e := meter.Int64Gauge(
+		"monitors.refreshed",
+		metric.WithUnit("{monitor}"),
+	)
+	if e != nil {
+		err = errors.Join(err, e)
+	}
+	usersRefreshed, e := meter.Int64Gauge(
+		"users.refreshed",
+		metric.WithUnit("{user}"),
+	)
+	if e != nil {
+		err = errors.Join(err, e)
+	}
 	return &metrics{
-		refreshDuration: refreshDuration,
+		refreshDuration:   refreshDuration,
+		monitorsRefreshed: monitorsRefreshed,
+		usersRefreshed:    usersRefreshed,
 	}, err
 }
 
@@ -177,10 +197,14 @@ func traceRefreshAll(
 	ctx, span := tracer.Start(ctx, "refresh.all")
 	start := time.Now()
 	defer func() {
+		var attrs []attribute.KeyValue
+		if err != nil {
+			attrs = append(attrs, semconv.ErrorTypeKey.String("refresh_failed"))
+		}
 		metrics.refreshDuration.Record(
 			ctx,
 			time.Since(start).Seconds(),
-			metric.WithAttributes(attribute.Bool("success", err == nil)),
+			metric.WithAttributes(attrs...),
 		)
 		if err != nil {
 			span.RecordError(err)
@@ -188,7 +212,7 @@ func traceRefreshAll(
 		}
 		span.End()
 	}()
-	return refreshAllMonitors(ctx, store, refresher, horizon)
+	return refreshAllMonitors(ctx, store, refresher, horizon, metrics)
 }
 
 func refreshAllMonitors(
@@ -196,6 +220,7 @@ func refreshAllMonitors(
 	store monitor.MonitorStore,
 	refresher *monitor.Refresher,
 	horizon monitor.ForecastHorizon,
+	metrics *metrics,
 ) error {
 	monitors, err := store.ListAllActive(ctx)
 	if err != nil {
@@ -221,6 +246,12 @@ func refreshAllMonitors(
 		}
 	}
 
+	users := make(map[uuid.UUID]struct{}, len(monitors))
+	for i := range monitors {
+		users[monitors[i].UserID] = struct{}{}
+	}
+	metrics.usersRefreshed.Record(ctx, int64(len(users)))
+	metrics.monitorsRefreshed.Record(ctx, int64(len(monitors)))
 	slog.InfoContext(ctx, "refresh completed", "monitor_count", len(monitors))
 	return nil
 }
@@ -356,13 +387,17 @@ func run() (err error) {
 	monitorStore := monitor.NewMonitorStore(queries)
 
 	refreshDispatcher := NewRefreshDispatcher()
-	refresher := monitor.NewRefresher(
+	refresher, err := monitor.NewRefresher(
 		weather.NewForecaster(
 			&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)},
 		),
 		monitor.NewRunAtomically(pool),
 		clk,
 	)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to create refresher", "error", err)
+		os.Exit(1)
+	}
 
 	keyRing, err := auth.NewKeyRing(cfg.SigningSecrets, clk.Now)
 	if err != nil {
@@ -426,11 +461,14 @@ func run() (err error) {
 		}
 	}
 
-	notifier := notification.NewNotifier(
+	notifier, err := notification.NewNotifier(
 		notification.NewOutbox(queries),
 		deliverFn,
 		clk.Now,
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create notifier: %w", err)
+	}
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
