@@ -30,6 +30,15 @@ WHERE
 ORDER BY
     id;
 
+-- name: GetUnsentNotification :one
+SELECT
+    *
+FROM
+    notifications
+WHERE
+    id = sqlc.arg('id')
+    AND sent_at IS NULL;
+
 -- name: UpdateNotificationSentAt :one
 UPDATE
     notifications

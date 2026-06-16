@@ -23,6 +23,7 @@ var (
 
 type outbox interface {
 	ListUnsent(ctx context.Context) ([]Fog, error)
+	Find(ctx context.Context, id uuid.UUID) (Fog, bool, error)
 	MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time) error
 }
 
@@ -85,6 +86,18 @@ func (n *Notifier) Notify(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func (n *Notifier) NotifyOne(ctx context.Context, id uuid.UUID) error {
+	notif, ok, err := n.outbox.Find(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		slog.DebugContext(ctx, "notification already delivered, skipping", "notification_id", id)
+		return nil
+	}
+	return n.deliverOne(ctx, notif)
 }
 
 func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {

@@ -67,6 +67,31 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 	return i, err
 }
 
+const getUnsentNotification = `-- name: GetUnsentNotification :one
+SELECT
+    id, recipient_id, message, sent_at, location_name, fog_start, fog_end
+FROM
+    notifications
+WHERE
+    id = $1
+    AND sent_at IS NULL
+`
+
+func (q *Queries) GetUnsentNotification(ctx context.Context, id pgtype.UUID) (Notification, error) {
+	row := q.db.QueryRow(ctx, getUnsentNotification, id)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.RecipientID,
+		&i.Message,
+		&i.SentAt,
+		&i.LocationName,
+		&i.FogStart,
+		&i.FogEnd,
+	)
+	return i, err
+}
+
 const listUnsentNotifications = `-- name: ListUnsentNotifications :many
 SELECT
     id, recipient_id, message, sent_at, location_name, fog_start, fog_end

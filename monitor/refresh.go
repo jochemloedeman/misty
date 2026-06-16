@@ -143,11 +143,11 @@ func (r *Refresher) Refresh(
 	ctx context.Context,
 	monitor Monitor,
 	horizon ForecastHorizon,
-) error {
+) (*notification.Queued, error) {
 	now := r.clock.Now()
 	forecasts, err := r.forecaster.Forecast(ctx, monitor.Location, horizon)
 	if err != nil {
-		return fmt.Errorf("forecast: %w", err)
+		return nil, fmt.Errorf("forecast: %w", err)
 	}
 
 	monitor, change := monitor.ReconcileRiskWindow(now, forecasts, horizon.Interval)
@@ -160,9 +160,16 @@ func (r *Refresher) Refresh(
 
 	r.metrics.reconciled.Add(ctx, 1, metric.WithAttributes(attribute.String("change_type", change.Type.String())))
 
-	return r.runAtom(ctx, func(s AtomicStores) error {
-		return persist(ctx, s, monitor, forecasts, change)
-	})
+	var queued *notification.Queued
+	if err := r.runAtom(ctx, func(s AtomicStores) error {
+		var e error
+		queued, e = persist(ctx, s, monitor, forecasts, change)
+		return e
+	}); err != nil {
+		return nil, err
+	}
+
+	return queued, nil
 }
 
 func persist(
@@ -171,11 +178,12 @@ func persist(
 	monitor Monitor,
 	forecasts []Forecast,
 	change RiskWindowChange,
-) error {
+) (*notification.Queued, error) {
 	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
-		return fmt.Errorf("save forecasts: %w", err)
+		return nil, fmt.Errorf("save forecasts: %w", err)
 	}
 
+	var queued *notification.Queued
 	if change.NeedsNotification() {
 		msg := fogAlertMessage(monitor)
 		notif := notification.New(
@@ -185,9 +193,11 @@ func persist(
 			change.RiskWindow.Start,
 			change.RiskWindow.End,
 		)
-		if _, err := s.Outbox.Create(ctx, notif); err != nil {
-			return fmt.Errorf("create notification: %w", err)
+		n, err := s.Outbox.Create(ctx, notif)
+		if err != nil {
+			return nil, fmt.Errorf("create notification: %w", err)
 		}
+		queued = &notification.Queued{ID: n.ID}
 		slog.InfoContext(ctx, "notification queued",
 			"monitor_id", monitor.ID,
 			"user_id", monitor.UserID,
@@ -197,12 +207,12 @@ func persist(
 
 	if change.NeedsSave() {
 		if _, err := s.MonitorStore.Update(ctx, monitor); err != nil {
-			return fmt.Errorf("update alert: %w", err)
+			return nil, fmt.Errorf("update alert: %w", err)
 		}
 		slog.DebugContext(ctx, "monitor updated", "monitor_id", monitor.ID)
 	}
 
-	return nil
+	return queued, nil
 }
 
 func fogAlertMessage(m Monitor) string {
