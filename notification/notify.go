@@ -75,12 +75,7 @@ func (n *Notifier) Notify(ctx context.Context) error {
 	}
 	span.SetAttributes(attribute.Int("notification.count", len(notifications)))
 
-	slog.DebugContext(
-		ctx,
-		"delivering notifications",
-		"count",
-		len(notifications),
-	)
+	slog.DebugContext(ctx, "delivering notifications", "count", len(notifications))
 
 	var errs []error
 	for _, notif := range notifications {
@@ -115,13 +110,6 @@ func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {
 		return fmt.Errorf("mark notification %s as sent: %w", notif.ID, err)
 	}
 
-	slog.InfoContext(
-		ctx,
-		"notification delivered",
-		"notification_id",
-		notif.ID,
-		"recipient_id",
-		notif.RecipientID,
-	)
+	slog.InfoContext(ctx, "notification delivered", "notification_id", notif.ID, "recipient_id", notif.RecipientID)
 	return nil
 }

@@ -76,10 +76,7 @@ func setupOTelSDK(ctx context.Context) (func(context.Context) error, error) {
 }
 
 func newPropagator() propagation.TextMapPropagator {
-	return propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
+	return propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 }
 
 func newTracerProvider(
@@ -95,10 +92,7 @@ func newTracerProvider(
 		return nil, err
 	}
 
-	tracerProvider := trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter),
-		trace.WithResource(resource),
-	)
+	tracerProvider := trace.NewTracerProvider(trace.WithBatcher(traceExporter), trace.WithResource(resource))
 	return tracerProvider, nil
 }
 
@@ -110,10 +104,7 @@ func newMeterProvider(
 		return nil, err
 	}
 
-	meterProvider := metric.NewMeterProvider(
-		metric.WithReader(exporter),
-		metric.WithResource(resource),
-	)
+	meterProvider := metric.NewMeterProvider(metric.WithReader(exporter), metric.WithResource(resource))
 	return meterProvider, nil
 }
 
@@ -121,10 +112,7 @@ func newLoggerProvider(
 	ctx context.Context,
 	resource *resource.Resource,
 ) (*log.LoggerProvider, error) {
-	logExporter, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(alloyEndpoint),
-		otlploggrpc.WithInsecure(),
-	)
+	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithEndpoint(alloyEndpoint), otlploggrpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
@@ -137,8 +125,5 @@ func newLoggerProvider(
 }
 
 func newResource(ctx context.Context) (*resource.Resource, error) {
-	return resource.New(
-		ctx,
-		resource.WithAttributes(semconv.ServiceName(serviceName)),
-	)
+	return resource.New(ctx, resource.WithAttributes(semconv.ServiceName(serviceName)))
 }

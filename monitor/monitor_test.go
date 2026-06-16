@@ -116,11 +116,7 @@ func TestNewMonitor(t *testing.T) {
 
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf(
-						"NewMonitor() error = %v, want %v",
-						err,
-						tt.wantErr,
-					)
+					t.Fatalf("NewMonitor() error = %v, want %v", err, tt.wantErr)
 				}
 				return
 			}
@@ -499,25 +495,12 @@ func TestReconcileRiskWindow(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotMonitor, gotChange := tc.monitor.ReconcileRiskWindow(
-				defaultTime,
-				tc.forecasts,
-				time.Hour,
-			)
+			gotMonitor, gotChange := tc.monitor.ReconcileRiskWindow(defaultTime, tc.forecasts, time.Hour)
 			if diff := cmp.Diff(tc.expected, gotChange); diff != "" {
-				t.Errorf(
-					"ReconcileRiskWindow() RiskWindowChange mismatch (-want +got):\n%s",
-					diff,
-				)
+				t.Errorf("ReconcileRiskWindow() RiskWindowChange mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(
-				tc.expected.RiskWindow,
-				gotMonitor.RiskWindow,
-			); diff != "" {
-				t.Errorf(
-					"ReconcileRiskWindow() Monitor.RiskWindow mismatch (-want +got):\n%s",
-					diff,
-				)
+			if diff := cmp.Diff(tc.expected.RiskWindow, gotMonitor.RiskWindow); diff != "" {
+				t.Errorf("ReconcileRiskWindow() Monitor.RiskWindow mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

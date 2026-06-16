@@ -24,11 +24,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	db := stdlib.OpenDBFromPool(pool)
-	provider, err := goose.NewProvider(
-		goose.DialectPostgres,
-		db,
-		migrations,
-	)
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
 	if err != nil {
 		return fmt.Errorf("creating goose provider: %w", err)
 	}

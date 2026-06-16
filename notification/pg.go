@@ -56,10 +56,7 @@ func (o *pgOutbox) Create(
 	}
 	row, err := o.queries.CreateNotification(ctx, params)
 	if err != nil {
-		return Fog{}, fmt.Errorf(
-			"failed to create notification: %w",
-			err,
-		)
+		return Fog{}, fmt.Errorf("failed to create notification: %w", err)
 	}
 	return toFog(row), nil
 }

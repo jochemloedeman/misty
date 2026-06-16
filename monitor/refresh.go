@@ -103,9 +103,7 @@ type metrics struct {
 func newMetrics() (*metrics, error) {
 	reconciled, err := meter.Int64Counter(
 		"monitors.reconciled",
-		metric.WithDescription(
-			"Number of monitor risk-window reconciliations by change type",
-		),
+		metric.WithDescription("Number of monitor risk-window reconciliations by change type"),
 		metric.WithUnit("{monitor}"),
 	)
 	return &metrics{reconciled: reconciled}, err
@@ -152,11 +150,7 @@ func (r *Refresher) Refresh(
 		return fmt.Errorf("forecast: %w", err)
 	}
 
-	monitor, change := monitor.ReconcileRiskWindow(
-		now,
-		forecasts,
-		horizon.Interval,
-	)
+	monitor, change := monitor.ReconcileRiskWindow(now, forecasts, horizon.Interval)
 
 	slog.InfoContext(ctx, "alert reconciled",
 		"monitor_id", monitor.ID,
@@ -164,9 +158,7 @@ func (r *Refresher) Refresh(
 		"change_type", change.Type,
 	)
 
-	r.metrics.reconciled.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("change_type", change.Type.String()),
-	))
+	r.metrics.reconciled.Add(ctx, 1, metric.WithAttributes(attribute.String("change_type", change.Type.String())))
 
 	return r.runAtom(ctx, func(s AtomicStores) error {
 		return persist(ctx, s, monitor, forecasts, change)
@@ -196,15 +188,10 @@ func persist(
 		if _, err := s.Outbox.Create(ctx, notif); err != nil {
 			return fmt.Errorf("create notification: %w", err)
 		}
-		slog.InfoContext(
-			ctx,
-			"notification queued",
-			"monitor_id",
-			monitor.ID,
-			"user_id",
-			monitor.UserID,
-			"message",
-			msg,
+		slog.InfoContext(ctx, "notification queued",
+			"monitor_id", monitor.ID,
+			"user_id", monitor.UserID,
+			"message", msg,
 		)
 	}
 

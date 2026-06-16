@@ -71,16 +71,7 @@ func (f FakeForecaster) Forecast(
 	forecasts := make([]monitor.Forecast, horizon.Steps)
 	fog := rand.Float64() < f.chanceOfFog
 	now := f.clock.Now()
-	dayStart := time.Date(
-		now.Year(),
-		now.Month(),
-		now.Day(),
-		0,
-		0,
-		0,
-		0,
-		now.Location(),
-	)
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	if !fog {
 		for i := 0; i < horizon.Steps; i++ {

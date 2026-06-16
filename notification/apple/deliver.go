@@ -25,16 +25,10 @@ func NewDeliverer(
 	return func(ctx context.Context, notif notification.Fog) error {
 		deviceToken, err := tokens.PushToken(ctx, notif.RecipientID)
 		if err != nil {
-			return fmt.Errorf(
-				"resolve push token for %s: %w",
-				notif.RecipientID,
-				err,
-			)
+			return fmt.Errorf("resolve push token for %s: %w", notif.RecipientID, err)
 		}
 		if deviceToken == "" {
-			slog.WarnContext(ctx, "no push token for user, skipping",
-				"recipient_id", notif.RecipientID,
-			)
+			slog.WarnContext(ctx, "no push token for user, skipping", "recipient_id", notif.RecipientID)
 			return nil
 		}
 
@@ -55,9 +49,7 @@ func NewDeliverer(
 			return fmt.Errorf("apns push: %w", err)
 		}
 		if !resp.Sent() {
-			return fmt.Errorf("apns rejected notification %s: %d %s",
-				notif.ID, resp.StatusCode, resp.Reason,
-			)
+			return fmt.Errorf("apns rejected notification %s: %d %s", notif.ID, resp.StatusCode, resp.Reason)
 		}
 
 		return nil

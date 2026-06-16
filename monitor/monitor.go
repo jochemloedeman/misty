@@ -116,12 +116,7 @@ func NewMonitor(
 		return Monitor{}, ErrLimitReached
 	}
 
-	exists, err := validator.LocationExistsByUser(
-		ctx,
-		userID,
-		location.Lat,
-		location.Lon,
-	)
+	exists, err := validator.LocationExistsByUser(ctx, userID, location.Lat, location.Lon)
 	if err != nil {
 		return Monitor{}, fmt.Errorf("checking duplicate location: %w", err)
 	}

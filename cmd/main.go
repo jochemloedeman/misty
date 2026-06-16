@@ -74,17 +74,11 @@ func newMetrics() (*metrics, error) {
 	if e != nil {
 		err = errors.Join(err, e)
 	}
-	monitorsRefreshed, e := meter.Int64Gauge(
-		"monitors.refreshed",
-		metric.WithUnit("{monitor}"),
-	)
+	monitorsRefreshed, e := meter.Int64Gauge("monitors.refreshed", metric.WithUnit("{monitor}"))
 	if e != nil {
 		err = errors.Join(err, e)
 	}
-	usersRefreshed, e := meter.Int64Gauge(
-		"users.refreshed",
-		metric.WithUnit("{user}"),
-	)
+	usersRefreshed, e := meter.Int64Gauge("users.refreshed", metric.WithUnit("{user}"))
 	if e != nil {
 		err = errors.Join(err, e)
 	}
@@ -111,19 +105,10 @@ func runServer(
 	// protected routes
 	mux.HandleFunc("GET /monitors", protected(routes.ListMonitors))
 	mux.HandleFunc("GET /monitors/{id}", protected(routes.GetMonitor))
-	mux.HandleFunc(
-		"GET /monitors/{id}/forecasts",
-		protected(routes.ListForecasts),
-	)
+	mux.HandleFunc("GET /monitors/{id}/forecasts", protected(routes.ListForecasts))
 	mux.HandleFunc("POST /monitors", protected(routes.CreateMonitor))
-	mux.HandleFunc(
-		"POST /monitors/{id}/deactivate",
-		protected(routes.SetMonitorStatus(false)),
-	)
-	mux.HandleFunc(
-		"POST /monitors/{id}/activate",
-		protected(routes.SetMonitorStatus(true)),
-	)
+	mux.HandleFunc("POST /monitors/{id}/deactivate", protected(routes.SetMonitorStatus(false)))
+	mux.HandleFunc("POST /monitors/{id}/activate", protected(routes.SetMonitorStatus(true)))
 	mux.HandleFunc("DELETE /monitors/{id}", protected(routes.DeleteMonitor))
 	mux.HandleFunc("PUT /device", protected(routes.UpdatePushToken))
 
@@ -133,27 +118,17 @@ func runServer(
 	mux.HandleFunc("GET /health", routes.HealthCheck)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	instrumented := otelhttp.NewHandler(
-		mux,
-		"server",
-		otelhttp.WithFilter(requestFilter),
-	)
+	instrumented := otelhttp.NewHandler(mux, "server", otelhttp.WithFilter(requestFilter))
 	srv := &http.Server{
-		Addr: ":" + port,
-		Handler: api.Compose(
-			api.RequestLogger,
-			api.MaxBodySize(maxBodySize),
-		)(instrumented),
+		Addr:    ":" + port,
+		Handler: api.Compose(api.RequestLogger, api.MaxBodySize(maxBodySize))(instrumented),
 	}
 
 	go func() {
 		<-ctx.Done()
 		slog.InfoContext(ctx, "http server shutting down")
 
-		shutdownCtx, cancel := context.WithTimeout(
-			context.Background(),
-			shutdownTimeout,
-		)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
 	}()
@@ -202,11 +177,7 @@ func traceRefreshAll(
 		if err != nil {
 			attrs = append(attrs, semconv.ErrorTypeKey.String("refresh_failed"))
 		}
-		metrics.refreshDuration.Record(
-			ctx,
-			time.Since(start).Seconds(),
-			metric.WithAttributes(attrs...),
-		)
+		metrics.refreshDuration.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -233,14 +204,7 @@ func refreshAllMonitors(
 	for i := range monitors {
 		if err := traceRefresh(ctx, refresher, monitors[i], horizon); err != nil {
 			if _, ok := errors.AsType[*monitor.Transient](err); ok {
-				slog.WarnContext(
-					ctx,
-					"transient error refreshing monitor",
-					"monitor_id",
-					monitors[i].ID,
-					"error",
-					err,
-				)
+				slog.WarnContext(ctx, "transient error refreshing monitor", "monitor_id", monitors[i].ID, "error", err)
 				continue
 			}
 			return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
@@ -279,20 +243,8 @@ func runRefreshLoop(
 			}
 		case request := <-dispatcher.Incoming():
 			ctx := request.Context(ctx)
-			if err := traceRefresh(
-				ctx,
-				refresher,
-				request.monitor,
-				horizon,
-			); err != nil {
-				slog.ErrorContext(
-					ctx,
-					"immediate refresh failed",
-					"monitor_id",
-					request.monitor.ID,
-					"error",
-					err,
-				)
+			if err := traceRefresh(ctx, refresher, request.monitor, horizon); err != nil {
+				slog.ErrorContext(ctx, "immediate refresh failed", "monitor_id", request.monitor.ID, "error", err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -323,10 +275,7 @@ func run() (err error) {
 
 	slog.SetDefault(slog.New(fanout{
 		otelslog.NewHandler("github.com/jochemloedeman/misty"),
-		slog.NewTextHandler(
-			os.Stderr,
-			&slog.HandlerOptions{Level: cfg.LogLevel},
-		),
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}),
 	}))
 
 	slog.InfoContext(context.Background(), "starting misty",
@@ -336,11 +285,7 @@ func run() (err error) {
 		"forecast_horizon", cfg.ForecastHorizon,
 	)
 
-	ctx, stop := signal.NotifyContext(
-		context.Background(),
-		os.Interrupt,
-		syscall.SIGTERM,
-	)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	otelShutdown, err := setupOTelSDK(ctx)
@@ -385,9 +330,7 @@ func run() (err error) {
 
 	refreshDispatcher := NewRefreshDispatcher()
 	refresher, err := monitor.NewRefresher(
-		weather.NewForecaster(
-			&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)},
-		),
+		weather.NewForecaster(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}),
 		monitor.NewRunAtomically(pool),
 		clk,
 	)
@@ -428,24 +371,14 @@ func run() (err error) {
 			apnsClient = apnsClient.Production()
 		}
 		apnsClient.HTTPClient.Transport = otelhttp.NewTransport(apnsClient.HTTPClient.Transport)
-		deliverFn = apple.NewDeliverer(
-			apnsClient,
-			apple.NewPGTokenResolver(queries),
-			cfg.APNS.Topic,
-		)
-		slog.InfoContext(
-			ctx,
-			"APNs delivery enabled",
-			"topic",
-			cfg.APNS.Topic,
-			"environment",
-			map[bool]string{true: "development", false: "production"}[cfg.APNS.Development],
-		)
+		deliverFn = apple.NewDeliverer(apnsClient, apple.NewPGTokenResolver(queries), cfg.APNS.Topic)
+		env := "production"
+		if cfg.APNS.Development {
+			env = "development"
+		}
+		slog.InfoContext(ctx, "APNs delivery enabled", "topic", cfg.APNS.Topic, "environment", env)
 	} else {
-		slog.WarnContext(
-			ctx,
-			"APNs not configured — notifications will be logged only",
-		)
+		slog.WarnContext(ctx, "APNs not configured — notifications will be logged only")
 		deliverFn = func(ctx context.Context, notif notification.Fog) error {
 			slog.InfoContext(ctx, "notification delivered (no-op)",
 				"notification_id", notif.ID,
@@ -455,11 +388,7 @@ func run() (err error) {
 		}
 	}
 
-	notifier, err := notification.NewNotifier(
-		notification.NewOutbox(queries),
-		deliverFn,
-		clk.Now,
-	)
+	notifier, err := notification.NewNotifier(notification.NewOutbox(queries), deliverFn, clk.Now)
 	if err != nil {
 		return fmt.Errorf("failed to create notifier: %w", err)
 	}
@@ -494,12 +423,7 @@ func main() {
 		return
 	}
 	if err := run(); err != nil {
-		slog.ErrorContext(
-			context.Background(),
-			"application error",
-			"error",
-			err,
-		)
+		slog.ErrorContext(context.Background(), "application error", "error", err)
 		os.Exit(1)
 	}
 }

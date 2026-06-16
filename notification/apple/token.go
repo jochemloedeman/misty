@@ -24,10 +24,7 @@ func (r *PGTokenResolver) PushToken(
 	ctx context.Context,
 	userID uuid.UUID,
 ) (string, error) {
-	token, err := r.queries.GetPushTokenByUserID(
-		ctx,
-		pgtype.UUID{Bytes: userID, Valid: true},
-	)
+	token, err := r.queries.GetPushTokenByUserID(ctx, pgtype.UUID{Bytes: userID, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", fmt.Errorf("user %s not found: %w", userID, err)

@@ -139,11 +139,7 @@ func (f *Forecaster) Forecast(
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-		return nil, fmt.Errorf(
-			"unexpected status %d: %s",
-			resp.StatusCode,
-			body,
-		)
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, body)
 	}
 
 	var apiResp response
@@ -181,14 +177,7 @@ func (f *Forecaster) Forecast(
 			},
 		}
 	}
-	slog.InfoContext(
-		ctx,
-		"forecast retrieved",
-		"location",
-		location.Name,
-		"forecast_count",
-		len(forecasts),
-	)
+	slog.InfoContext(ctx, "forecast retrieved", "location", location.Name, "forecast_count", len(forecasts))
 
 	return forecasts, nil
 }

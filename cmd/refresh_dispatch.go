@@ -37,19 +37,9 @@ func (d *RefreshDispatcher) Request(ctx context.Context, m monitor.Monitor) {
 
 	select {
 	case d.incoming <- r:
-		slog.DebugContext(
-			ctx,
-			"immediate refresh requested",
-			"monitor_id",
-			r.monitor.ID,
-		)
+		slog.DebugContext(ctx, "immediate refresh requested", "monitor_id", r.monitor.ID)
 	default:
-		slog.WarnContext(
-			ctx,
-			"immediate refresh dropped, buffer full",
-			"monitor_id",
-			r.monitor.ID,
-		)
+		slog.WarnContext(ctx, "immediate refresh dropped, buffer full", "monitor_id", r.monitor.ID)
 	}
 }
 

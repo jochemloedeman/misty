@@ -213,12 +213,7 @@ func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 
 	monitors, err := s.monitorStore.ListByUser(r.Context(), uid)
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 	res := make([]MonitorResponse, len(monitors))
@@ -233,12 +228,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid monitor id"),
-		)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid monitor id"))
 		return
 	}
 
@@ -248,12 +238,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
@@ -265,12 +250,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid monitor id"),
-		)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid monitor id"))
 		return
 	}
 
@@ -280,41 +260,21 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
 	horizonStr := cmp.Or(r.URL.Query().Get("horizon"), "12h")
 	horizon, err := time.ParseDuration(horizonStr)
 	if err != nil || horizon <= 0 {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid horizon, must be a positive duration"),
-		)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid horizon, must be a positive duration"))
 		return
 	}
 
 	now := s.now().Truncate(time.Hour)
-	forecasts, err := s.forecastStore.ListForMonitorInRange(
-		r.Context(),
-		mid,
-		now,
-		now.Add(horizon),
-	)
+	forecasts, err := s.forecastStore.ListForMonitorInRange(r.Context(), mid, now, now.Add(horizon))
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
@@ -344,18 +304,8 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		slog.DebugContext(
-			r.Context(),
-			"failed to decode request body",
-			"error",
-			err,
-		)
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid request body"),
-		)
+		slog.DebugContext(r.Context(), "failed to decode request body", "error", err)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid request body"))
 		return
 	}
 
@@ -371,41 +321,21 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		s.monitorLimit,
 	)
 	if errors.Is(err, monitor.ErrLimitReached) {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusUnprocessableEntity,
-			withMessage("monitor limit reached"),
-		)
+		writeError(r.Context(), w, http.StatusUnprocessableEntity, withMessage("monitor limit reached"))
 		return
 	}
 	if errors.Is(err, monitor.ErrDuplicateLocation) {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusConflict,
-			withMessage("a monitor for this location already exists"),
-		)
+		writeError(r.Context(), w, http.StatusConflict, withMessage("a monitor for this location already exists"))
 		return
 	}
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
 	created, err := s.monitorStore.Create(r.Context(), m)
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
@@ -428,12 +358,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 
 		mid, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
-			writeError(
-				r.Context(),
-				w,
-				http.StatusBadRequest,
-				withMessage("invalid monitor id"),
-			)
+			writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid monitor id"))
 			return
 		}
 
@@ -443,12 +368,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			writeError(
-				r.Context(),
-				w,
-				http.StatusInternalServerError,
-				logCause(r.Context(), err),
-			)
+			writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 			return
 		}
 
@@ -464,12 +384,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			writeError(
-				r.Context(),
-				w,
-				http.StatusInternalServerError,
-				logCause(r.Context(), err),
-			)
+			writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 			return
 		}
 
@@ -493,12 +408,7 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 
 	mid, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid monitor id"),
-		)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid monitor id"))
 		return
 	}
 
@@ -508,56 +418,29 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
-	slog.InfoContext(
-		r.Context(),
-		"monitor deleted",
-		"monitor_id",
-		mid,
-		"user_id",
-		uid,
-	)
+	slog.InfoContext(r.Context(), "monitor deleted", "monitor_id", mid, "user_id", uid)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *API) Register(w http.ResponseWriter, r *http.Request) {
 	u, plainRefreshToken, err := user.New()
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 	created, err := s.userStore.Create(r.Context(), u)
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
 	accessToken, err := s.issuer.Issue(created.ID)
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
@@ -579,48 +462,23 @@ func (s *API) TokenRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	var p params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		slog.DebugContext(
-			r.Context(),
-			"failed to decode request body",
-			"error",
-			err,
-		)
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid request body"),
-		)
+		slog.DebugContext(r.Context(), "failed to decode request body", "error", err)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid request body"))
 		return
 	}
 
 	u, err := s.userStore.GetByRefreshToken(r.Context(), p.RefreshToken)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
-			writeError(
-				r.Context(),
-				w,
-				http.StatusUnauthorized,
-				withMessage("invalid refresh token"),
-			)
+			writeError(r.Context(), w, http.StatusUnauthorized, withMessage("invalid refresh token"))
 			return
 		}
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 	accessToken, err := s.issuer.Issue(u.ID)
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
@@ -639,24 +497,14 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 	var p Params
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		slog.DebugContext(r.Context(), "decoding push token", "error", err)
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid request body"),
-		)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid request body"))
 		return
 	}
 
 	_, err := hex.DecodeString(p.PushToken)
 	if err != nil {
 		slog.DebugContext(r.Context(), "decoding push token hex", "error", err)
-		writeError(
-			r.Context(),
-			w,
-			http.StatusBadRequest,
-			withMessage("invalid push token format"),
-		)
+		writeError(r.Context(), w, http.StatusBadRequest, withMessage("invalid push token format"))
 		return
 	}
 
@@ -667,12 +515,7 @@ func (s *API) UpdatePushToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(
-			r.Context(),
-			w,
-			http.StatusInternalServerError,
-			logCause(r.Context(), err),
-		)
+		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
 	}
 
