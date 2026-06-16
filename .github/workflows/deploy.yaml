@@ -63,18 +63,18 @@ jobs:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
           tags: tag:ci
-          ping: ${{ vars.DEPLOY_HOST }}
+          ping: ${{ secrets.DEPLOY_HOST }}
 
       - name: Copy compose files to server
         run: |
           tar cf - compose.yaml compose.observability.yaml observability | \
-            tailscale ssh deploy@${{ vars.DEPLOY_HOST }} \
+            tailscale ssh deploy@${{ secrets.DEPLOY_HOST }} \
             "tar xf - -C /opt/misty/"
 
       - name: Deploy
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           tailscale ssh deploy@"$DEPLOY_HOST" \
             GHCR_TOKEN="$GHCR_TOKEN" bash -s << 'SCRIPT'
