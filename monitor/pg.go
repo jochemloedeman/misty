@@ -66,7 +66,7 @@ type pgMonitorStore struct {
 	queries *sqlc.Queries
 }
 
-func NewMonitorStore(q *sqlc.Queries) *pgMonitorStore {
+func NewStore(q *sqlc.Queries) *pgMonitorStore {
 	return &pgMonitorStore{queries: q}
 }
 
@@ -280,7 +280,7 @@ func NewRunAtomically(pool *pgxpool.Pool) RunAtomically {
 		queries := sqlc.New(tx)
 
 		s := AtomicStores{
-			MonitorStore:  NewMonitorStore(queries),
+			MonitorStore:  NewStore(queries),
 			ForecastStore: NewForecastStore(queries),
 			Outbox:        notification.NewOutbox(queries),
 		}

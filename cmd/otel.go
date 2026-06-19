@@ -17,12 +17,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
-const (
-	alloyEndpoint = "alloy:4317"
-	serviceName   = "misty"
-)
+const serviceName = "misty"
 
-func setupOTelSDK(ctx context.Context) (func(context.Context) error, error) {
+func setupOTelSDK(ctx context.Context, endpoint string) (func(context.Context) error, error) {
 	var shutdownFuncs []func(context.Context) error
 	var err error
 
@@ -48,7 +45,7 @@ func setupOTelSDK(ctx context.Context) (func(context.Context) error, error) {
 		return shutdown, err
 	}
 
-	tracerProvider, err := newTracerProvider(ctx, res)
+	tracerProvider, err := newTracerProvider(ctx, res, endpoint)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
@@ -64,7 +61,7 @@ func setupOTelSDK(ctx context.Context) (func(context.Context) error, error) {
 	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
 	otel.SetMeterProvider(meterProvider)
 
-	loggerProvider, err := newLoggerProvider(ctx, res)
+	loggerProvider, err := newLoggerProvider(ctx, res, endpoint)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
@@ -82,10 +79,11 @@ func newPropagator() propagation.TextMapPropagator {
 func newTracerProvider(
 	ctx context.Context,
 	resource *resource.Resource,
+	endpoint string,
 ) (*trace.TracerProvider, error) {
 	traceExporter, err := otlptracegrpc.New(
 		ctx,
-		otlptracegrpc.WithEndpoint(alloyEndpoint),
+		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
@@ -111,8 +109,9 @@ func newMeterProvider(
 func newLoggerProvider(
 	ctx context.Context,
 	resource *resource.Resource,
+	endpoint string,
 ) (*log.LoggerProvider, error) {
-	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithEndpoint(alloyEndpoint), otlploggrpc.WithInsecure())
+	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithEndpoint(endpoint), otlploggrpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,7 @@ const (
 	defaultNotifyMinutes  = 5
 	defaultForecastSteps  = 16
 	defaultMonitorLimit   = 5
+	defaultOTelEndpoint   = "alloy:4317"
 )
 
 type apnsConfig struct {
@@ -37,6 +38,8 @@ type config struct {
 	APNS            *apnsConfig
 	MonitorLimit    int
 	ConsoleLog      bool
+	OTelEndpoint    string
+	ClockScale      float64
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -50,10 +53,28 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Steps:    defaultForecastSteps,
 		},
 		MonitorLimit: defaultMonitorLimit,
+		ConsoleLog:   true,
+		OTelEndpoint: defaultOTelEndpoint,
+		ClockScale:   1,
 	}
 
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
+	}
+
+	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+		cfg.OTelEndpoint = v
+	}
+
+	if v := os.Getenv("CLOCK_SCALE"); v != "" {
+		scale, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid CLOCK_SCALE %q: %w", v, err)
+		}
+		if scale <= 0 {
+			return config{}, fmt.Errorf("CLOCK_SCALE must be positive, got %g", scale)
+		}
+		cfg.ClockScale = scale
 	}
 
 	postgresPasswordFile := os.Getenv("POSTGRES_PASSWORD_FILE")

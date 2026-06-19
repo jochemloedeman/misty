@@ -1,4 +1,4 @@
-package main
+package queue
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 type Envelope[T any] struct {
-	payload     T
+	Payload     T
 	spanContext trace.SpanContext
 }
 
@@ -21,7 +21,7 @@ type Queue[T any] struct {
 	incoming chan Envelope[T]
 }
 
-func NewQueue[T any](name string, buffer int) *Queue[T] {
+func New[T any](name string, buffer int) *Queue[T] {
 	return &Queue[T]{
 		name:     name,
 		incoming: make(chan Envelope[T], buffer),
@@ -30,7 +30,7 @@ func NewQueue[T any](name string, buffer int) *Queue[T] {
 
 func (q *Queue[T]) Enqueue(ctx context.Context, payload T) {
 	e := Envelope[T]{
-		payload:     payload,
+		Payload:     payload,
 		spanContext: trace.SpanContextFromContext(ctx),
 	}
 

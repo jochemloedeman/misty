@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -19,9 +20,11 @@ import (
 	"github.com/jochemloedeman/misty/clock"
 	"github.com/jochemloedeman/misty/db"
 	"github.com/jochemloedeman/misty/db/sqlc"
+	"github.com/jochemloedeman/misty/logging"
 	"github.com/jochemloedeman/misty/monitor"
 	"github.com/jochemloedeman/misty/notification"
 	"github.com/jochemloedeman/misty/notification/apple"
+	"github.com/jochemloedeman/misty/queue"
 	"github.com/jochemloedeman/misty/user"
 	"github.com/jochemloedeman/misty/weather"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -41,10 +44,7 @@ const (
 var skipPaths = []string{"/health", "/metrics"}
 
 func requestFilter(r *http.Request) bool {
-	if slices.Contains(skipPaths, r.URL.Path) {
-		return false
-	}
-	return true
+	return !slices.Contains(skipPaths, r.URL.Path)
 }
 
 func runServer(
@@ -54,27 +54,8 @@ func runServer(
 	port string,
 ) error {
 	mux := http.NewServeMux()
-
-	requireUser := api.RequireUser(verifier)
-	protected := func(h http.HandlerFunc) http.HandlerFunc {
-		return requireUser(h).ServeHTTP
-	}
-
-	// protected routes
-	mux.HandleFunc("GET /monitors", protected(routes.ListMonitors))
-	mux.HandleFunc("GET /monitors/{id}", protected(routes.GetMonitor))
-	mux.HandleFunc("GET /monitors/{id}/forecasts", protected(routes.ListForecasts))
-	mux.HandleFunc("POST /monitors", protected(routes.CreateMonitor))
-	mux.HandleFunc("POST /monitors/{id}/deactivate", protected(routes.SetMonitorStatus(false)))
-	mux.HandleFunc("POST /monitors/{id}/activate", protected(routes.SetMonitorStatus(true)))
-	mux.HandleFunc("DELETE /monitors/{id}", protected(routes.DeleteMonitor))
-	mux.HandleFunc("PUT /device", protected(routes.UpdatePushToken))
-
-	// bare route
-	mux.HandleFunc("POST /register", routes.Register)
-	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
-	mux.HandleFunc("GET /health", routes.HealthCheck)
 	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.Handle("/", routes.Handler(verifier))
 
 	instrumented := otelhttp.NewHandler(mux, "server", otelhttp.WithFilter(requestFilter))
 	srv := &http.Server{
@@ -101,28 +82,37 @@ func runServer(
 	return nil
 }
 
+type ticker interface {
+	NewTicker(d time.Duration) *time.Ticker
+}
+
+type Clock interface {
+	ticker
+	Now() time.Time
+}
+
 func runRefreshLoop(
 	ctx context.Context,
 	refresher *monitor.Refresher,
-	refreshQueue *Queue[monitor.Monitor],
-	notifyQueue *Queue[notification.Queued],
+	refreshQueue *queue.Queue[monitor.Monitor],
+	notifyQueue *queue.Queue[notification.Queued],
 	interval time.Duration,
-	clock clock.RealClock,
+	clk ticker,
 ) error {
-	ticker := clock.NewTicker(interval)
-	defer ticker.Stop()
+	t := clk.NewTicker(interval)
+	defer t.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-t.C:
 			if err := refresher.RefreshAll(ctx); err != nil {
 				slog.ErrorContext(ctx, "refresh error", "error", err)
 			}
 		case envelope := <-refreshQueue.C():
 			ctx := envelope.Context(ctx)
-			queued, err := refresher.Refresh(ctx, envelope.payload)
+			queued, err := refresher.Refresh(ctx, envelope.Payload)
 			if err != nil {
-				slog.ErrorContext(ctx, "immediate refresh failed", "monitor_id", envelope.payload.ID, "error", err)
+				slog.ErrorContext(ctx, "immediate refresh failed", "monitor_id", envelope.Payload.ID, "error", err)
 			} else if queued != nil {
 				notifyQueue.Enqueue(ctx, *queued)
 			}
@@ -135,27 +125,27 @@ func runRefreshLoop(
 func runNotifyLoop(
 	ctx context.Context,
 	notifier *notification.Notifier,
-	notifyQueue *Queue[notification.Queued],
+	notifyQueue *queue.Queue[notification.Queued],
 	interval time.Duration,
-	clock clock.RealClock,
+	clk ticker,
 ) error {
-	ticker := clock.NewTicker(interval)
-	defer ticker.Stop()
+	t := clk.NewTicker(interval)
+	defer t.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-t.C:
 			if err := notifier.Notify(ctx); err != nil {
 				slog.ErrorContext(ctx, "notification error", "error", err)
 			}
 		case envelope := <-notifyQueue.C():
 			ctx := envelope.Context(ctx)
-			if err := notifier.NotifyOne(ctx, envelope.payload.ID); err != nil {
+			if err := notifier.NotifyOne(ctx, envelope.Payload.ID); err != nil {
 				slog.ErrorContext(
 					ctx,
 					"immediate notification failed",
 					"notification_id",
-					envelope.payload.ID,
+					envelope.Payload.ID,
 					"error",
 					err,
 				)
@@ -166,7 +156,8 @@ func runNotifyLoop(
 	}
 }
 
-func checkHealth(port string) {
+func checkHealth() {
+	port := cmp.Or(os.Getenv("PORT"), "8080")
 	resp, err := http.Get("http://localhost:" + port + "/health")
 	if err != nil {
 		os.Exit(1)
@@ -183,10 +174,11 @@ func run() (err error) {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	slog.SetDefault(slog.New(fanout{
-		otelslog.NewHandler("github.com/jochemloedeman/misty"),
-		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}),
-	}))
+	handlers := []slog.Handler{otelslog.NewHandler("github.com/jochemloedeman/misty")}
+	if cfg.ConsoleLog {
+		handlers = append(handlers, slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	}
+	slog.SetDefault(slog.New(logging.Fanout(handlers)))
 
 	slog.InfoContext(context.Background(), "starting misty",
 		"port", cfg.Port,
@@ -199,7 +191,7 @@ func run() (err error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	otelShutdown, err := setupOTelSDK(ctx)
+	otelShutdown, err := setupOTelSDK(ctx, cfg.OTelEndpoint)
 	if err != nil {
 		return fmt.Errorf("failed to setup open telemetry: %w", err)
 	}
@@ -228,14 +220,18 @@ func run() (err error) {
 
 	slog.InfoContext(ctx, "database connected")
 
-	clk := clock.NewRealClock()
+	var clk Clock = clock.NewRealClock()
+	if cfg.ClockScale != 1 {
+		clk = clock.NewFastClock(cfg.ClockScale)
+		slog.WarnContext(ctx, "fast clock enabled", "scale", cfg.ClockScale)
+	}
 
 	queries := sqlc.New(pool)
 	userStore := user.NewStore(queries)
-	monitorStore := monitor.NewMonitorStore(queries)
+	monitorStore := monitor.NewStore(queries)
 
-	refreshQueue := NewQueue[monitor.Monitor]("refresh", bufferSize)
-	notifyQueue := NewQueue[notification.Queued]("notify", bufferSize)
+	refreshQueue := queue.New[monitor.Monitor]("refresh", bufferSize)
+	notifyQueue := queue.New[notification.Queued]("notify", bufferSize)
 	refresher, err := monitor.NewRefresher(
 		weather.NewForecaster(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}),
 		monitor.NewRunAtomically(pool),
@@ -333,7 +329,7 @@ func run() (err error) {
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "health" {
-		checkHealth("8080")
+		checkHealth()
 		return
 	}
 	if err := run(); err != nil {
