@@ -2,6 +2,11 @@ package clock
 
 import "time"
 
+type Clock interface {
+	Now() time.Time
+	NewTicker(d time.Duration) *time.Ticker
+}
+
 type RealClock struct{}
 
 func NewRealClock() RealClock {

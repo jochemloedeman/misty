@@ -16,6 +16,7 @@ const (
 	defaultNotifyMinutes  = 5
 	defaultForecastSteps  = 16
 	defaultMonitorLimit   = 5
+	defaultOTelEndpoint   = "alloy:4317"
 )
 
 type apnsConfig struct {
@@ -37,6 +38,7 @@ type config struct {
 	APNS            *apnsConfig
 	MonitorLimit    int
 	ConsoleLog      bool
+	OTelEndpoint    string
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -50,10 +52,16 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Steps:    defaultForecastSteps,
 		},
 		MonitorLimit: defaultMonitorLimit,
+		ConsoleLog:   true,
+		OTelEndpoint: defaultOTelEndpoint,
 	}
 
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
+	}
+
+	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+		cfg.OTelEndpoint = v
 	}
 
 	postgresPasswordFile := os.Getenv("POSTGRES_PASSWORD_FILE")
