@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/notification"
@@ -11,12 +12,11 @@ import (
 	"github.com/sideshow/apns2/payload"
 )
 
-// TokenResolver looks up an APNs device token for a given user ID.
 type TokenResolver interface {
 	PushToken(ctx context.Context, userID uuid.UUID) (string, error)
+	ClearPushToken(ctx context.Context, userID uuid.UUID, token string) error
 }
 
-// NewDeliverer returns a deliver function that sends notifications via APNs.
 func NewDeliverer(
 	client *apns2.Client,
 	tokens TokenResolver,
@@ -47,6 +47,14 @@ func NewDeliverer(
 		})
 		if err != nil {
 			return fmt.Errorf("apns push: %w", err)
+		}
+		if resp.StatusCode == http.StatusGone {
+			slog.WarnContext(ctx, "apns token unregistered, clearing",
+				"recipient_id", notif.RecipientID, "notification_id", notif.ID)
+			if err := tokens.ClearPushToken(ctx, notif.RecipientID, deviceToken); err != nil {
+				return fmt.Errorf("clear unregistered token for %s: %w", notif.RecipientID, err)
+			}
+			return nil
 		}
 		if !resp.Sent() {
 			return fmt.Errorf("apns rejected notification %s: %d %s", notif.ID, resp.StatusCode, resp.Reason)
