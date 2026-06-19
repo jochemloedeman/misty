@@ -82,20 +82,29 @@ func runServer(
 	return nil
 }
 
+type ticker interface {
+	NewTicker(d time.Duration) *time.Ticker
+}
+
+type Clock interface {
+	ticker
+	Now() time.Time
+}
+
 func runRefreshLoop(
 	ctx context.Context,
 	refresher *monitor.Refresher,
 	refreshQueue *queue.Queue[monitor.Monitor],
 	notifyQueue *queue.Queue[notification.Queued],
 	interval time.Duration,
-	clk clock.Clock,
+	clk ticker,
 ) error {
-	ticker := clk.NewTicker(interval)
-	defer ticker.Stop()
+	t := clk.NewTicker(interval)
+	defer t.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-t.C:
 			if err := refresher.RefreshAll(ctx); err != nil {
 				slog.ErrorContext(ctx, "refresh error", "error", err)
 			}
@@ -118,14 +127,14 @@ func runNotifyLoop(
 	notifier *notification.Notifier,
 	notifyQueue *queue.Queue[notification.Queued],
 	interval time.Duration,
-	clk clock.Clock,
+	clk ticker,
 ) error {
-	ticker := clk.NewTicker(interval)
-	defer ticker.Stop()
+	t := clk.NewTicker(interval)
+	defer t.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-t.C:
 			if err := notifier.Notify(ctx); err != nil {
 				slog.ErrorContext(ctx, "notification error", "error", err)
 			}
@@ -211,7 +220,11 @@ func run() (err error) {
 
 	slog.InfoContext(ctx, "database connected")
 
-	clk := clock.NewRealClock()
+	var clk Clock = clock.NewRealClock()
+	if cfg.ClockScale != 1 {
+		clk = clock.NewFastClock(cfg.ClockScale)
+		slog.WarnContext(ctx, "fast clock enabled", "scale", cfg.ClockScale)
+	}
 
 	queries := sqlc.New(pool)
 	userStore := user.NewStore(queries)
