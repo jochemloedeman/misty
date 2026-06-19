@@ -13,6 +13,7 @@ import (
 
 const (
 	defaultRefreshMinutes = 60
+	defaultNotifyMinutes  = 5
 	defaultForecastSteps  = 16
 	defaultMonitorLimit   = 5
 )
@@ -31,6 +32,7 @@ type config struct {
 	SigningSecrets  [][]byte
 	LogLevel        slog.Level
 	RefreshInterval time.Duration
+	NotifyInterval  time.Duration
 	ForecastHorizon monitor.ForecastHorizon
 	APNS            *apnsConfig
 	MonitorLimit    int
@@ -42,6 +44,7 @@ func loadConfig() (config, error) { //nolint:cyclop
 		Port:            "8080",
 		LogLevel:        slog.LevelInfo,
 		RefreshInterval: defaultRefreshMinutes * time.Minute,
+		NotifyInterval:  defaultNotifyMinutes * time.Minute,
 		ForecastHorizon: monitor.ForecastHorizon{
 			Interval: time.Hour,
 			Steps:    defaultForecastSteps,
@@ -105,6 +108,14 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("invalid REFRESH_INTERVAL %q: %w", v, err)
 		}
 		cfg.RefreshInterval = d
+	}
+
+	if v := os.Getenv("NOTIFY_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid NOTIFY_INTERVAL %q: %w", v, err)
+		}
+		cfg.NotifyInterval = d
 	}
 
 	if v := os.Getenv("FORECAST_GRANULARITY"); v != "" {

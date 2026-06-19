@@ -2,10 +2,12 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jochemloedeman/misty/db/sqlc"
 )
@@ -71,6 +73,20 @@ func (o *pgOutbox) ListUnsent(ctx context.Context) ([]Fog, error) {
 		notifs[i] = toFog(row)
 	}
 	return notifs, nil
+}
+
+func (o *pgOutbox) Find(
+	ctx context.Context,
+	id uuid.UUID,
+) (Fog, bool, error) {
+	row, err := o.queries.GetUnsentNotification(ctx, dbUUID(id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Fog{}, false, nil
+		}
+		return Fog{}, false, fmt.Errorf("find unsent notification: %w", err)
+	}
+	return toFog(row), true, nil
 }
 
 func (o *pgOutbox) MarkSent(

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jochemloedeman/misty/api"
 	"github.com/jochemloedeman/misty/auth"
@@ -30,63 +29,22 @@ import (
 	"github.com/sideshow/apns2/token"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	shutdownTimeout = 5 * time.Second
 	maxBodySize     = 4 << 10
+	bufferSize      = 8
 )
 
-var (
-	tracer             = otel.Tracer("github.com/jochemloedeman/misty/cmd")
-	meter              = otel.Meter("github.com/jochemloedeman/misty/cmd")
-	durationBoundaries = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
-	skipPaths          = []string{"/health", "/metrics"}
-)
+var skipPaths = []string{"/health", "/metrics"}
 
 func requestFilter(r *http.Request) bool {
 	if slices.Contains(skipPaths, r.URL.Path) {
 		return false
 	}
 	return true
-}
-
-type metrics struct {
-	refreshDuration   metric.Float64Histogram
-	monitorsRefreshed metric.Int64Gauge
-	usersRefreshed    metric.Int64Gauge
-}
-
-func newMetrics() (*metrics, error) {
-	var err, e error
-	refreshDuration, e := meter.Float64Histogram(
-		"refresh.duration",
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(durationBoundaries...),
-	)
-	if e != nil {
-		err = errors.Join(err, e)
-	}
-	monitorsRefreshed, e := meter.Int64Gauge("monitors.refreshed", metric.WithUnit("{monitor}"))
-	if e != nil {
-		err = errors.Join(err, e)
-	}
-	usersRefreshed, e := meter.Int64Gauge("users.refreshed", metric.WithUnit("{user}"))
-	if e != nil {
-		err = errors.Join(err, e)
-	}
-	return &metrics{
-		refreshDuration:   refreshDuration,
-		monitorsRefreshed: monitorsRefreshed,
-		usersRefreshed:    usersRefreshed,
-	}, err
 }
 
 func runServer(
@@ -116,7 +74,7 @@ func runServer(
 	mux.HandleFunc("POST /register", routes.Register)
 	mux.HandleFunc("POST /token/refresh", routes.TokenRefresh)
 	mux.HandleFunc("GET /health", routes.HealthCheck)
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	instrumented := otelhttp.NewHandler(mux, "server", otelhttp.WithFilter(requestFilter))
 	srv := &http.Server{
@@ -143,94 +101,13 @@ func runServer(
 	return nil
 }
 
-func traceRefresh(
-	ctx context.Context,
-	refresher *monitor.Refresher,
-	m monitor.Monitor,
-	horizon monitor.ForecastHorizon,
-) (err error) {
-	ctx, span := tracer.Start(ctx, "refresh", trace.WithAttributes(
-		attribute.String("monitor.id", m.ID.String()),
-		attribute.String("monitor.location", m.Location.Name),
-	))
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
-	return refresher.Refresh(ctx, m, horizon)
-}
-
-func traceRefreshAll(
-	ctx context.Context,
-	store monitor.MonitorStore,
-	refresher *monitor.Refresher,
-	horizon monitor.ForecastHorizon,
-	metrics *metrics,
-) (err error) {
-	ctx, span := tracer.Start(ctx, "refresh.all")
-	start := time.Now()
-	defer func() {
-		var attrs []attribute.KeyValue
-		if err != nil {
-			attrs = append(attrs, semconv.ErrorTypeKey.String("refresh_failed"))
-		}
-		metrics.refreshDuration.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
-	return refreshAllMonitors(ctx, store, refresher, horizon, metrics)
-}
-
-func refreshAllMonitors(
-	ctx context.Context,
-	store monitor.MonitorStore,
-	refresher *monitor.Refresher,
-	horizon monitor.ForecastHorizon,
-	metrics *metrics,
-) error {
-	monitors, err := store.ListAllActive(ctx)
-	if err != nil {
-		return fmt.Errorf("list active monitors: %w", err)
-	}
-
-	slog.InfoContext(ctx, "refresh started", "monitor_count", len(monitors))
-
-	for i := range monitors {
-		if err := traceRefresh(ctx, refresher, monitors[i], horizon); err != nil {
-			if _, ok := errors.AsType[*monitor.Transient](err); ok {
-				slog.WarnContext(ctx, "transient error refreshing monitor", "monitor_id", monitors[i].ID, "error", err)
-				continue
-			}
-			return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
-		}
-	}
-
-	users := make(map[uuid.UUID]struct{}, len(monitors))
-	for i := range monitors {
-		users[monitors[i].UserID] = struct{}{}
-	}
-	metrics.usersRefreshed.Record(ctx, int64(len(users)))
-	metrics.monitorsRefreshed.Record(ctx, int64(len(monitors)))
-	slog.InfoContext(ctx, "refresh completed", "monitor_count", len(monitors))
-	return nil
-}
-
 func runRefreshLoop(
 	ctx context.Context,
-	monitorStore monitor.MonitorStore,
 	refresher *monitor.Refresher,
-	dispatcher *RefreshDispatcher,
-	notifier *notification.Notifier,
+	refreshQueue *Queue[monitor.Monitor],
+	notifyQueue *Queue[notification.Queued],
 	interval time.Duration,
-	horizon monitor.ForecastHorizon,
 	clock clock.RealClock,
-	metrics *metrics,
 ) error {
 	ticker := clock.NewTicker(interval)
 	defer ticker.Stop()
@@ -238,20 +115,53 @@ func runRefreshLoop(
 	for {
 		select {
 		case <-ticker.C:
-			if err := traceRefreshAll(ctx, monitorStore, refresher, horizon, metrics); err != nil {
+			if err := refresher.RefreshAll(ctx); err != nil {
 				slog.ErrorContext(ctx, "refresh error", "error", err)
 			}
-		case request := <-dispatcher.Incoming():
-			ctx := request.Context(ctx)
-			if err := traceRefresh(ctx, refresher, request.monitor, horizon); err != nil {
-				slog.ErrorContext(ctx, "immediate refresh failed", "monitor_id", request.monitor.ID, "error", err)
+		case envelope := <-refreshQueue.C():
+			ctx := envelope.Context(ctx)
+			queued, err := refresher.Refresh(ctx, envelope.payload)
+			if err != nil {
+				slog.ErrorContext(ctx, "immediate refresh failed", "monitor_id", envelope.payload.ID, "error", err)
+			} else if queued != nil {
+				notifyQueue.Enqueue(ctx, *queued)
 			}
 		case <-ctx.Done():
 			return nil
 		}
+	}
+}
 
-		if err := notifier.Notify(ctx); err != nil {
-			slog.ErrorContext(ctx, "notification error", "error", err)
+func runNotifyLoop(
+	ctx context.Context,
+	notifier *notification.Notifier,
+	notifyQueue *Queue[notification.Queued],
+	interval time.Duration,
+	clock clock.RealClock,
+) error {
+	ticker := clock.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := notifier.Notify(ctx); err != nil {
+				slog.ErrorContext(ctx, "notification error", "error", err)
+			}
+		case envelope := <-notifyQueue.C():
+			ctx := envelope.Context(ctx)
+			if err := notifier.NotifyOne(ctx, envelope.payload.ID); err != nil {
+				slog.ErrorContext(
+					ctx,
+					"immediate notification failed",
+					"notification_id",
+					envelope.payload.ID,
+					"error",
+					err,
+				)
+			}
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
@@ -282,6 +192,7 @@ func run() (err error) {
 		"port", cfg.Port,
 		"log_level", cfg.LogLevel,
 		"refresh_interval", cfg.RefreshInterval,
+		"notify_interval", cfg.NotifyInterval,
 		"forecast_horizon", cfg.ForecastHorizon,
 	)
 
@@ -297,11 +208,6 @@ func run() (err error) {
 		defer cancel()
 		err = errors.Join(err, otelShutdown(sctx))
 	}()
-
-	metrics, err := newMetrics()
-	if err != nil {
-		return fmt.Errorf("creating metrics: %w", err)
-	}
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
@@ -328,11 +234,14 @@ func run() (err error) {
 	userStore := user.NewStore(queries)
 	monitorStore := monitor.NewMonitorStore(queries)
 
-	refreshDispatcher := NewRefreshDispatcher()
+	refreshQueue := NewQueue[monitor.Monitor]("refresh", bufferSize)
+	notifyQueue := NewQueue[notification.Queued]("notify", bufferSize)
 	refresher, err := monitor.NewRefresher(
 		weather.NewForecaster(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}),
 		monitor.NewRunAtomically(pool),
 		clk,
+		monitorStore,
+		cfg.ForecastHorizon,
 	)
 	if err != nil {
 		return fmt.Errorf("creating refresher: %w", err)
@@ -343,14 +252,13 @@ func run() (err error) {
 		return fmt.Errorf("creating key ring: %w", err)
 	}
 	forecastStore := monitor.NewForecastStore(queries)
+	monitorService := monitor.NewService(monitorStore, refreshQueue.Enqueue, cfg.MonitorLimit)
 	routes := api.New(
 		userStore,
-		monitorStore,
+		monitorService,
 		forecastStore,
 		keyRing,
-		refreshDispatcher.Request,
 		clk.Now,
-		cfg.MonitorLimit,
 	)
 
 	var deliverFn func(context.Context, notification.Fog) error
@@ -400,14 +308,20 @@ func run() (err error) {
 	group.Go(func() error {
 		return runRefreshLoop(
 			ctx,
-			monitorStore,
 			refresher,
-			refreshDispatcher,
-			notifier,
+			refreshQueue,
+			notifyQueue,
 			cfg.RefreshInterval,
-			cfg.ForecastHorizon,
 			clk,
-			metrics,
+		)
+	})
+	group.Go(func() error {
+		return runNotifyLoop(
+			ctx,
+			notifier,
+			notifyQueue,
+			cfg.NotifyInterval,
+			clk,
 		)
 	})
 
