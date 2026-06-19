@@ -1,0 +1,317 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: misty-critical
+    folder: Misty
+    interval: 1m
+    rules:
+      - uid: misty-app-down
+        title: Misty app is down
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: up{job="misty-app"}
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+              refId: B
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Misty /metrics scrape is failing — the app is down or crash-looping."
+
+      - uid: misty-refresh-stalled
+        title: Misty refresh loop stalled
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 7200, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: sum(increase(refresh_duration_seconds_count[2h]))
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [0.5] }
+              refId: B
+        # NoData = no completed cycles at all (app down or wedged) -> alert.
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "No refresh cycle completed in 2h (2x the default 60m interval) — the loop is wedged. Adjust the [2h] window if REFRESH_INTERVAL changed."
+
+      - uid: misty-refresh-failing
+        title: Misty refresh cycle failing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              # Count-based, not ratio: the loop ticks hourly, so a sub-cadence
+              # ratio window is usually empty. A single non-transient failure
+              # (DB down, persistent error) aborts the whole cycle and is serious.
+              expr: sum(increase(refresh_duration_seconds_count{error_type="refresh_failed"}[1h]))
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.5] }
+              refId: B
+        # No failures -> series absent -> NoData -> not firing.
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "A refresh cycle ended in a non-transient error in the last hour (transient Open-Meteo/network errors are excluded)."
+
+  - orgId: 1
+    name: misty-warning
+    folder: Misty
+    interval: 1m
+    rules:
+      - uid: misty-apns-failing
+        title: Misty APNs delivery failing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: (sum(increase(notifications_delivered_total{error_type="delivery_failed"}[1h])) or vector(0)) / clamp_min(sum(increase(notifications_delivered_total[1h])), 1)
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
+              refId: B
+        # Sparse signal (only during fog events); 1h window + OK-on-NoData avoids noise.
+        noDataState: OK
+        execErrState: Alerting
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "Over 20% of APNs delivery attempts failed in the last hour — fog alerts may not be reaching phones."
+
+      - uid: misty-memory-high
+        title: Misty memory near OOM limit
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: process_resident_memory_bytes{job="misty-app"}
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              # 90% of the 256 MiB (268435456 B) compose limit; container is OOM-killed at the limit.
+              conditions:
+                - evaluator: { type: gt, params: [241591910] }
+              refId: B
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "RSS above 90% of the 256 MiB compose limit for 10m — OOM-kill risk."
+
+      - uid: misty-goroutines-high
+        title: Misty goroutine pile-up
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: go_goroutines{job="misty-app"}
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [100] }
+              refId: B
+        noDataState: OK
+        execErrState: Alerting
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Goroutine count sustained above 100 — likely a leak or a DB-pool/network deadlock. Tune after observing baseline."
+
+      - uid: misty-refresh-per-monitor-slow
+        title: Misty per-monitor refresh slowdown
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              # Fleet-normalized mean seconds-per-monitor (RefreshAll is sequential),
+              # so it stays flat as the fleet grows and only rises on real slowdown.
+              expr: (sum(rate(refresh_duration_seconds_sum[30m])) / clamp_min(sum(rate(refresh_duration_seconds_count[30m])), 1)) / clamp_min(monitors_refreshed, 1)
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.5] }
+              refId: B
+        noDataState: OK
+        execErrState: Alerting
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "Mean per-monitor refresh time above 0.5s for 30m — Open-Meteo or DB slowdown (independent of fleet size). Tune after baseline."
+
+  - orgId: 1
+    name: misty-observability
+    folder: Misty
+    interval: 1m
+    rules:
+      - uid: misty-telemetry-down
+        title: Misty telemetry component down
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: up{job=~"loki|tempo|alloy|prometheus|grafana"}
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+              refId: B
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Telemetry component {{ $labels.job }} is down — losing logs/traces/metrics silently (e.g. Alloy)."
+
+      - uid: misty-error-log-spike
+        title: Misty error-log spike
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              # Verify labels in Explore: service_name comes from OTel service.name via
+              # Loki OTLP ingestion; detected_level is Loki 3.x auto-detected level.
+              expr: sum(count_over_time({service_name="misty"} | detected_level="error" [10m]))
+              queryType: instant
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [5] }
+              refId: B
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 5 error-level logs in 10m — failures with no dedicated metric (save forecasts, mark sent, token verify)."
