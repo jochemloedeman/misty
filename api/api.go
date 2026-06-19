@@ -20,22 +20,12 @@ type contextKey string
 
 const userIDKey contextKey = "userID"
 
-type MonitorStore interface {
-	ListByUser(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error)
-	Get(
-		ctx context.Context,
-		userID uuid.UUID,
-		monitorID uuid.UUID,
-	) (monitor.Monitor, error)
-	Create(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
-	Update(ctx context.Context, m monitor.Monitor) (monitor.Monitor, error)
-	Delete(ctx context.Context, userID uuid.UUID, monitorID uuid.UUID) error
-	CountByUser(ctx context.Context, userID uuid.UUID) (int, error)
-	LocationExistsByUser(
-		ctx context.Context,
-		userID uuid.UUID,
-		lat, lon float64,
-	) (bool, error)
+type MonitorService interface {
+	List(ctx context.Context, userID uuid.UUID) ([]monitor.Monitor, error)
+	Get(ctx context.Context, userID, monitorID uuid.UUID) (monitor.Monitor, error)
+	Create(ctx context.Context, userID uuid.UUID, location monitor.Location) (monitor.Monitor, error)
+	SetStatus(ctx context.Context, userID, monitorID uuid.UUID, activate bool) (monitor.Monitor, error)
+	Delete(ctx context.Context, userID, monitorID uuid.UUID) error
 }
 
 type UserStore interface {
@@ -116,32 +106,26 @@ type ForecastResponse struct {
 }
 
 type API struct {
-	monitorStore    MonitorStore
-	forecastStore   ForecastStore
-	userStore       UserStore
-	issuer          TokenIssuer
-	onRefreshNeeded func(context.Context, monitor.Monitor)
-	now             func() time.Time
-	monitorLimit    int
+	monitors      MonitorService
+	forecastStore ForecastStore
+	userStore     UserStore
+	issuer        TokenIssuer
+	now           func() time.Time
 }
 
 func New(
 	userStore UserStore,
-	monitorStore MonitorStore,
+	monitors MonitorService,
 	forecastStore ForecastStore,
 	issuer TokenIssuer,
-	onRefreshNeeded func(context.Context, monitor.Monitor),
 	now func() time.Time,
-	monitorLimit int,
 ) *API {
 	return &API{
-		userStore:       userStore,
-		monitorStore:    monitorStore,
-		forecastStore:   forecastStore,
-		issuer:          issuer,
-		onRefreshNeeded: onRefreshNeeded,
-		now:             now,
-		monitorLimit:    monitorLimit,
+		userStore:     userStore,
+		monitors:      monitors,
+		forecastStore: forecastStore,
+		issuer:        issuer,
+		now:           now,
 	}
 }
 
@@ -211,7 +195,7 @@ func (s *API) HealthCheck(w http.ResponseWriter, r *http.Request) {
 func (s *API) ListMonitors(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r.Context())
 
-	monitors, err := s.monitorStore.ListByUser(r.Context(), uid)
+	monitors, err := s.monitors.List(r.Context(), uid)
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
@@ -232,7 +216,7 @@ func (s *API) GetMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := s.monitorStore.Get(r.Context(), uid, mid)
+	m, err := s.monitors.Get(r.Context(), uid, mid)
 	if errors.Is(err, monitor.ErrNotFound) {
 		writeError(r.Context(), w, http.StatusNotFound)
 		return
@@ -254,7 +238,7 @@ func (s *API) ListForecasts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.monitorStore.Get(r.Context(), uid, mid)
+	_, err = s.monitors.Get(r.Context(), uid, mid)
 	if errors.Is(err, monitor.ErrNotFound) {
 		writeError(r.Context(), w, http.StatusNotFound)
 		return
@@ -309,17 +293,11 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := monitor.NewMonitor(
-		r.Context(),
-		s.monitorStore,
-		uid,
-		monitor.Location{
-			Name: p.LocationName,
-			Lat:  p.Lat,
-			Lon:  p.Lon,
-		},
-		s.monitorLimit,
-	)
+	created, err := s.monitors.Create(r.Context(), uid, monitor.Location{
+		Name: p.LocationName,
+		Lat:  p.Lat,
+		Lon:  p.Lon,
+	})
 	if errors.Is(err, monitor.ErrLimitReached) {
 		writeError(r.Context(), w, http.StatusUnprocessableEntity, withMessage("monitor limit reached"))
 		return
@@ -328,12 +306,6 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusConflict, withMessage("a monitor for this location already exists"))
 		return
 	}
-	if err != nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
-		return
-	}
-
-	created, err := s.monitorStore.Create(r.Context(), m)
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
 		return
@@ -348,8 +320,6 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	)
 
 	writeJSON(r.Context(), w, http.StatusCreated, toMonitorResponse(created))
-
-	s.onRefreshNeeded(r.Context(), created)
 }
 
 func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
@@ -362,23 +332,7 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 
-		m, err := s.monitorStore.Get(r.Context(), uid, mid)
-		if errors.Is(err, monitor.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound)
-			return
-		}
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, logCause(r.Context(), err))
-			return
-		}
-
-		if activate {
-			m = m.Activate()
-		} else {
-			m = m.Deactivate()
-		}
-
-		updated, err := s.monitorStore.Update(r.Context(), m)
+		updated, err := s.monitors.SetStatus(r.Context(), uid, mid, activate)
 		if errors.Is(err, monitor.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound)
 			return
@@ -396,10 +350,6 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 		)
 
 		writeJSON(r.Context(), w, http.StatusOK, toMonitorResponse(updated))
-
-		if activate {
-			s.onRefreshNeeded(r.Context(), updated)
-		}
 	}
 }
 
@@ -412,7 +362,7 @@ func (s *API) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.monitorStore.Delete(r.Context(), uid, mid)
+	err = s.monitors.Delete(r.Context(), uid, mid)
 	if errors.Is(err, monitor.ErrNotFound) {
 		writeError(r.Context(), w, http.StatusNotFound)
 		return

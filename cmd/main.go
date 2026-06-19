@@ -380,14 +380,13 @@ func run() (err error) {
 		return fmt.Errorf("creating key ring: %w", err)
 	}
 	forecastStore := monitor.NewForecastStore(queries)
+	monitorService := monitor.NewService(monitorStore, refreshQueue.Enqueue, cfg.MonitorLimit)
 	routes := api.New(
 		userStore,
-		monitorStore,
+		monitorService,
 		forecastStore,
 		keyRing,
-		refreshQueue.Enqueue,
 		clk.Now,
-		cfg.MonitorLimit,
 	)
 
 	var deliverFn func(context.Context, notification.Fog) error
