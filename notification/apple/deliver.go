@@ -17,8 +17,12 @@ type TokenResolver interface {
 	ClearPushToken(ctx context.Context, userID uuid.UUID, token string) error
 }
 
+type Pusher interface {
+	PushWithContext(ctx apns2.Context, n *apns2.Notification) (*apns2.Response, error)
+}
+
 func NewDeliverer(
-	client *apns2.Client,
+	client Pusher,
 	tokens TokenResolver,
 	topic string,
 ) func(context.Context, notification.Fog) error {
@@ -48,6 +52,8 @@ func NewDeliverer(
 		if err != nil {
 			return fmt.Errorf("apns push: %w", err)
 		}
+
+		// push token invalidated by Apple. clear it.
 		if resp.StatusCode == http.StatusGone {
 			slog.WarnContext(ctx, "apns token unregistered, clearing",
 				"recipient_id", notif.RecipientID, "notification_id", notif.ID)

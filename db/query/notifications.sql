@@ -26,7 +26,7 @@ SELECT
 FROM
     notifications
 WHERE
-    sent_at IS NULL
+    status = 'pending'
 ORDER BY
     id;
 
@@ -37,12 +37,21 @@ FROM
     notifications
 WHERE
     id = sqlc.arg('id')
-    AND sent_at IS NULL;
+    AND status = 'pending';
 
--- name: UpdateNotificationSentAt :one
+-- name: MarkNotificationSent :one
 UPDATE
     notifications
 SET
-    sent_at = sqlc.arg('sent_at')
+    sent_at = sqlc.arg('sent_at'),
+    status = 'sent'
+WHERE
+    id = sqlc.arg('id') RETURNING *;
+
+-- name: MarkNotificationExpired :one
+UPDATE
+    notifications
+SET
+    status = 'expired'
 WHERE
     id = sqlc.arg('id') RETURNING *;

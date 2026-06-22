@@ -31,7 +31,7 @@ VALUES
         $5,
         $6,
         $7
-    ) RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end
+    ) RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end, status
 `
 
 type CreateNotificationParams struct {
@@ -63,18 +63,19 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		&i.LocationName,
 		&i.FogStart,
 		&i.FogEnd,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getUnsentNotification = `-- name: GetUnsentNotification :one
 SELECT
-    id, recipient_id, message, sent_at, location_name, fog_start, fog_end
+    id, recipient_id, message, sent_at, location_name, fog_start, fog_end, status
 FROM
     notifications
 WHERE
     id = $1
-    AND sent_at IS NULL
+    AND status = 'pending'
 `
 
 func (q *Queries) GetUnsentNotification(ctx context.Context, id pgtype.UUID) (Notification, error) {
@@ -88,17 +89,18 @@ func (q *Queries) GetUnsentNotification(ctx context.Context, id pgtype.UUID) (No
 		&i.LocationName,
 		&i.FogStart,
 		&i.FogEnd,
+		&i.Status,
 	)
 	return i, err
 }
 
 const listUnsentNotifications = `-- name: ListUnsentNotifications :many
 SELECT
-    id, recipient_id, message, sent_at, location_name, fog_start, fog_end
+    id, recipient_id, message, sent_at, location_name, fog_start, fog_end, status
 FROM
     notifications
 WHERE
-    sent_at IS NULL
+    status = 'pending'
 ORDER BY
     id
 `
@@ -120,6 +122,7 @@ func (q *Queries) ListUnsentNotifications(ctx context.Context) ([]Notification, 
 			&i.LocationName,
 			&i.FogStart,
 			&i.FogEnd,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -131,22 +134,17 @@ func (q *Queries) ListUnsentNotifications(ctx context.Context) ([]Notification, 
 	return items, nil
 }
 
-const updateNotificationSentAt = `-- name: UpdateNotificationSentAt :one
+const markNotificationExpired = `-- name: MarkNotificationExpired :one
 UPDATE
     notifications
 SET
-    sent_at = $1
+    status = 'expired'
 WHERE
-    id = $2 RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end
+    id = $1 RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end, status
 `
 
-type UpdateNotificationSentAtParams struct {
-	SentAt pgtype.Timestamptz
-	ID     pgtype.UUID
-}
-
-func (q *Queries) UpdateNotificationSentAt(ctx context.Context, arg UpdateNotificationSentAtParams) (Notification, error) {
-	row := q.db.QueryRow(ctx, updateNotificationSentAt, arg.SentAt, arg.ID)
+func (q *Queries) MarkNotificationExpired(ctx context.Context, id pgtype.UUID) (Notification, error) {
+	row := q.db.QueryRow(ctx, markNotificationExpired, id)
 	var i Notification
 	err := row.Scan(
 		&i.ID,
@@ -156,6 +154,38 @@ func (q *Queries) UpdateNotificationSentAt(ctx context.Context, arg UpdateNotifi
 		&i.LocationName,
 		&i.FogStart,
 		&i.FogEnd,
+		&i.Status,
+	)
+	return i, err
+}
+
+const markNotificationSent = `-- name: MarkNotificationSent :one
+UPDATE
+    notifications
+SET
+    sent_at = $1,
+    status = 'sent'
+WHERE
+    id = $2 RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end, status
+`
+
+type MarkNotificationSentParams struct {
+	SentAt pgtype.Timestamptz
+	ID     pgtype.UUID
+}
+
+func (q *Queries) MarkNotificationSent(ctx context.Context, arg MarkNotificationSentParams) (Notification, error) {
+	row := q.db.QueryRow(ctx, markNotificationSent, arg.SentAt, arg.ID)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.RecipientID,
+		&i.Message,
+		&i.SentAt,
+		&i.LocationName,
+		&i.FogStart,
+		&i.FogEnd,
+		&i.Status,
 	)
 	return i, err
 }

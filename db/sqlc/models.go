@@ -5,8 +5,54 @@
 package sqlc
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type NotificationStatus string
+
+const (
+	NotificationStatusPending NotificationStatus = "pending"
+	NotificationStatusSent    NotificationStatus = "sent"
+	NotificationStatusExpired NotificationStatus = "expired"
+)
+
+func (e *NotificationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationStatus(s)
+	case string:
+		*e = NotificationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationStatus struct {
+	NotificationStatus NotificationStatus
+	Valid              bool // Valid is true if NotificationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationStatus), nil
+}
 
 type Forecast struct {
 	ForecastAt       pgtype.Timestamptz
@@ -38,6 +84,7 @@ type Notification struct {
 	LocationName string
 	FogStart     pgtype.Timestamptz
 	FogEnd       pgtype.Timestamptz
+	Status       NotificationStatus
 }
 
 type User struct {
