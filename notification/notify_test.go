@@ -54,6 +54,7 @@ func TestDeliverOne(t *testing.T) {
 	tests := []struct {
 		name           string
 		expired        bool
+		unknownEnd     bool
 		deliverErr     error
 		markSentErr    error
 		markExpiredErr error
@@ -74,6 +75,12 @@ func TestDeliverOne(t *testing.T) {
 			markExpiredErr:  errMarkExpired,
 			wantErrIs:       errMarkExpired,
 			wantMarkExpired: true,
+		},
+		{
+			name:         "unknown fog_end delivers and does not expire",
+			unknownEnd:   true,
+			wantDeliver:  true,
+			wantMarkSent: true,
 		},
 		{
 			name:         "delivered marks sent",
@@ -116,6 +123,9 @@ func TestDeliverOne(t *testing.T) {
 			fogEnd := now.Add(time.Hour)
 			if tt.expired {
 				fogEnd = now.Add(-time.Hour)
+			}
+			if tt.unknownEnd {
+				fogEnd = time.Time{}
 			}
 			notif := Fog{ID: uuid.New(), RecipientID: uuid.New(), FogEnd: fogEnd}
 

@@ -126,7 +126,7 @@ func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {
 		span.End()
 	}()
 
-	if notif.FogEnd.Before(n.now()) {
+	if !notif.FogEnd.IsZero() && notif.FogEnd.Before(n.now()) {
 		outcome = outcomeExpired
 		slog.InfoContext(ctx, "expiring notification past its fog window",
 			"notification_id", notif.ID, "recipient_id", notif.RecipientID, "fog_end", notif.FogEnd)
