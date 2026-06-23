@@ -45,3 +45,8 @@ UPDATE users
 SET push_token = sqlc.arg('push_token')
 WHERE id = sqlc.arg('id')
 RETURNING *;
+
+-- name: ClearPushToken :exec
+UPDATE users
+SET push_token = NULL
+WHERE id = sqlc.arg('id') AND push_token = sqlc.arg('push_token');

@@ -16,6 +16,10 @@ type Fog struct {
 	SentAt       time.Time
 }
 
+func (f Fog) Expired(now time.Time) bool {
+	return !f.FogEnd.IsZero() && f.FogEnd.Before(now)
+}
+
 func New(
 	recipientID uuid.UUID,
 	message, locationName string,

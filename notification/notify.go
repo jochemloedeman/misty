@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -21,13 +20,29 @@ var (
 	meter  = otel.Meter("github.com/jochemloedeman/misty/notification")
 )
 
+// ErrUndeliverable signals that a notification reached no device — the recipient
+// has no push token, or Apple reported the token as unregistered. It is terminal,
+// not a transient failure: retrying will not help until a new token is registered.
+var ErrUndeliverable = errors.New("no deliverable push token")
+
 type outbox interface {
 	ListUnsent(ctx context.Context) ([]Fog, error)
 	Find(ctx context.Context, id uuid.UUID) (Fog, bool, error)
 	MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time) error
+	MarkExpired(ctx context.Context, id uuid.UUID) error
+	MarkUndeliverable(ctx context.Context, id uuid.UUID) error
 }
 
 type deliver func(context.Context, Fog) error
+
+type deliveryOutcome string
+
+const (
+	outcomeDelivered     deliveryOutcome = "delivered"
+	outcomeExpired       deliveryOutcome = "expired"
+	outcomeFailed        deliveryOutcome = "failed"
+	outcomeUndeliverable deliveryOutcome = "undeliverable"
+)
 
 type metrics struct {
 	delivered metric.Int64Counter
@@ -67,7 +82,7 @@ func NewNotifier(
 }
 
 func (n *Notifier) Notify(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "notify")
+	ctx, span := tracer.Start(ctx, "notify.all")
 	defer span.End()
 
 	notifications, err := n.outbox.ListUnsent(ctx)
@@ -105,18 +120,39 @@ func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {
 		attribute.String("notification.id", notif.ID.String()),
 		attribute.String("recipient.id", notif.RecipientID.String()),
 	))
+	outcome := outcomeDelivered
 	defer func() {
-		var attrs []attribute.KeyValue
 		if err != nil {
+			outcome = outcomeFailed
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-			attrs = append(attrs, semconv.ErrorTypeKey.String("delivery_failed"))
 		}
-		n.metrics.delivered.Add(ctx, 1, metric.WithAttributes(attrs...))
+		n.metrics.delivered.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("notification.outcome", string(outcome)),
+		))
 		span.End()
 	}()
 
+	if notif.Expired(n.now()) {
+		outcome = outcomeExpired
+		slog.InfoContext(ctx, "expiring notification past its fog window",
+			"notification_id", notif.ID, "recipient_id", notif.RecipientID, "fog_end", notif.FogEnd)
+		if err := n.outbox.MarkExpired(ctx, notif.ID); err != nil {
+			return fmt.Errorf("mark notification %s expired: %w", notif.ID, err)
+		}
+		return nil
+	}
+
 	if err := n.deliver(ctx, notif); err != nil {
+		if errors.Is(err, ErrUndeliverable) {
+			outcome = outcomeUndeliverable
+			slog.InfoContext(ctx, "notification undeliverable, no push token",
+				"notification_id", notif.ID, "recipient_id", notif.RecipientID)
+			if err := n.outbox.MarkUndeliverable(ctx, notif.ID); err != nil {
+				return fmt.Errorf("mark notification %s undeliverable: %w", notif.ID, err)
+			}
+			return nil
+		}
 		return fmt.Errorf("deliver notification %s: %w", notif.ID, err)
 	}
 	if err := n.outbox.MarkSent(ctx, notif.ID, n.now()); err != nil {

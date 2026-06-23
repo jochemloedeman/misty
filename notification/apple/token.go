@@ -33,3 +33,18 @@ func (r *PGTokenResolver) PushToken(
 	}
 	return token.String, nil
 }
+
+func (r *PGTokenResolver) ClearPushToken(
+	ctx context.Context,
+	userID uuid.UUID,
+	token string,
+) error {
+	err := r.queries.ClearPushToken(ctx, sqlc.ClearPushTokenParams{
+		ID:        pgtype.UUID{Bytes: userID, Valid: true},
+		PushToken: pgtype.Text{String: token, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("clear push token for %s: %w", userID, err)
+	}
+	return nil
+}

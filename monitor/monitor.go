@@ -132,6 +132,8 @@ func NewMonitor(
 	}, nil
 }
 
+// NOTE: calculates a concrete end time, even when the last
+// timestamp suggests fog.
 func fogRiskWindow(forecasts []Forecast, interval time.Duration) *RiskWindow {
 	var start, end time.Time
 	var anyFog bool

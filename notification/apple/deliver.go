@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jochemloedeman/misty/notification"
@@ -11,14 +12,17 @@ import (
 	"github.com/sideshow/apns2/payload"
 )
 
-// TokenResolver looks up an APNs device token for a given user ID.
 type TokenResolver interface {
 	PushToken(ctx context.Context, userID uuid.UUID) (string, error)
+	ClearPushToken(ctx context.Context, userID uuid.UUID, token string) error
 }
 
-// NewDeliverer returns a deliver function that sends notifications via APNs.
+type Pusher interface {
+	PushWithContext(ctx apns2.Context, n *apns2.Notification) (*apns2.Response, error)
+}
+
 func NewDeliverer(
-	client *apns2.Client,
+	client Pusher,
 	tokens TokenResolver,
 	topic string,
 ) func(context.Context, notification.Fog) error {
@@ -29,7 +33,7 @@ func NewDeliverer(
 		}
 		if deviceToken == "" {
 			slog.WarnContext(ctx, "no push token for user, skipping", "recipient_id", notif.RecipientID)
-			return nil
+			return notification.ErrUndeliverable
 		}
 
 		p := payload.NewPayload().
@@ -47,6 +51,16 @@ func NewDeliverer(
 		})
 		if err != nil {
 			return fmt.Errorf("apns push: %w", err)
+		}
+
+		// push token invalidated by Apple. clear it.
+		if resp.StatusCode == http.StatusGone {
+			slog.WarnContext(ctx, "apns token unregistered, clearing",
+				"recipient_id", notif.RecipientID, "notification_id", notif.ID)
+			if err := tokens.ClearPushToken(ctx, notif.RecipientID, deviceToken); err != nil {
+				return fmt.Errorf("clear unregistered token for %s: %w", notif.RecipientID, err)
+			}
+			return notification.ErrUndeliverable
 		}
 		if !resp.Sent() {
 			return fmt.Errorf("apns rejected notification %s: %d %s", notif.ID, resp.StatusCode, resp.Reason)

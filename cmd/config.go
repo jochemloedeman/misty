@@ -28,18 +28,19 @@ type apnsConfig struct {
 }
 
 type config struct {
-	DatabaseURL     string
-	Port            string
-	SigningSecrets  [][]byte
-	LogLevel        slog.Level
-	RefreshInterval time.Duration
-	NotifyInterval  time.Duration
-	ForecastHorizon monitor.ForecastHorizon
-	APNS            *apnsConfig
-	MonitorLimit    int
-	ConsoleLog      bool
-	OTelEndpoint    string
-	ClockScale      float64
+	DatabaseURL        string
+	Port               string
+	SigningSecrets     [][]byte
+	LogLevel           slog.Level
+	RefreshInterval    time.Duration
+	NotifyInterval     time.Duration
+	ForecastHorizon    monitor.ForecastHorizon
+	APNS               *apnsConfig
+	APNSSimulateStatus int
+	MonitorLimit       int
+	ConsoleLog         bool
+	OTelEndpoint       string
+	ClockScale         float64
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -186,6 +187,14 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Topic:       topic,
 			Development: os.Getenv("APNS_DEVELOPMENT") == "true",
 		}
+	}
+
+	if v := os.Getenv("APNS_SIMULATE_STATUS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid APNS_SIMULATE_STATUS %q: %w", v, err)
+		}
+		cfg.APNSSimulateStatus = n
 	}
 
 	if v := os.Getenv("CONSOLE_LOG"); v != "" {

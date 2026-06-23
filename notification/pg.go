@@ -94,15 +94,31 @@ func (o *pgOutbox) MarkSent(
 	id uuid.UUID,
 	sentAt time.Time,
 ) error {
-	_, err := o.queries.UpdateNotificationSentAt(
+	_, err := o.queries.MarkNotificationSent(
 		ctx,
-		sqlc.UpdateNotificationSentAtParams{
+		sqlc.MarkNotificationSentParams{
 			ID:     dbUUID(id),
 			SentAt: dbTime(sentAt),
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("mark notification sent: %w", err)
+	}
+	return nil
+}
+
+func (o *pgOutbox) MarkExpired(ctx context.Context, id uuid.UUID) error {
+	_, err := o.queries.MarkNotificationExpired(ctx, dbUUID(id))
+	if err != nil {
+		return fmt.Errorf("mark notification expired: %w", err)
+	}
+	return nil
+}
+
+func (o *pgOutbox) MarkUndeliverable(ctx context.Context, id uuid.UUID) error {
+	_, err := o.queries.MarkNotificationUndeliverable(ctx, dbUUID(id))
+	if err != nil {
+		return fmt.Errorf("mark notification undeliverable: %w", err)
 	}
 	return nil
 }

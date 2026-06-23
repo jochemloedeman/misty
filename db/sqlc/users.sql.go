@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearPushToken = `-- name: ClearPushToken :exec
+UPDATE users
+SET push_token = NULL
+WHERE id = $1 AND push_token = $2
+`
+
+type ClearPushTokenParams struct {
+	ID        pgtype.UUID
+	PushToken pgtype.Text
+}
+
+func (q *Queries) ClearPushToken(ctx context.Context, arg ClearPushTokenParams) error {
+	_, err := q.db.Exec(ctx, clearPushToken, arg.ID, arg.PushToken)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO
     users (
