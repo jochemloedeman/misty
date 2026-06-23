@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'expired');
+CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'expired', 'undeliverable');
 
 ALTER TABLE notifications
     ADD COLUMN status notification_status NOT NULL DEFAULT 'pending';

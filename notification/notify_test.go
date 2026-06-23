@@ -10,14 +10,16 @@ import (
 )
 
 var (
-	errDeliver     = errors.New("deliver failed")
-	errMarkSent    = errors.New("mark sent failed")
-	errMarkExpired = errors.New("mark expired failed")
+	errDeliver           = errors.New("deliver failed")
+	errMarkSent          = errors.New("mark sent failed")
+	errMarkExpired       = errors.New("mark expired failed")
+	errMarkUndeliverable = errors.New("mark undeliverable failed")
 )
 
 type stubOutbox struct {
-	markSentErr    error
-	markExpiredErr error
+	markSentErr          error
+	markExpiredErr       error
+	markUndeliverableErr error
 
 	markSentID    uuid.UUID
 	markSentAt    time.Time
@@ -25,6 +27,9 @@ type stubOutbox struct {
 
 	markExpiredID    uuid.UUID
 	markExpiredCalls int
+
+	markUndeliverableID    uuid.UUID
+	markUndeliverableCalls int
 }
 
 func (s *stubOutbox) ListUnsent(context.Context) ([]Fog, error) {
@@ -48,21 +53,29 @@ func (s *stubOutbox) MarkExpired(_ context.Context, id uuid.UUID) error {
 	return s.markExpiredErr
 }
 
+func (s *stubOutbox) MarkUndeliverable(_ context.Context, id uuid.UUID) error {
+	s.markUndeliverableCalls++
+	s.markUndeliverableID = id
+	return s.markUndeliverableErr
+}
+
 func TestDeliverOne(t *testing.T) {
 	now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name           string
-		expired        bool
-		unknownEnd     bool
-		deliverErr     error
-		markSentErr    error
-		markExpiredErr error
+		name                 string
+		expired              bool
+		unknownEnd           bool
+		deliverErr           error
+		markSentErr          error
+		markExpiredErr       error
+		markUndeliverableErr error
 
-		wantErrIs       error
-		wantDeliver     bool
-		wantMarkSent    bool
-		wantMarkExpired bool
+		wantErrIs             error
+		wantDeliver           bool
+		wantMarkSent          bool
+		wantMarkExpired       bool
+		wantMarkUndeliverable bool
 	}{
 		{
 			name:            "expired marks expired and skips delivery",
@@ -100,13 +113,28 @@ func TestDeliverOne(t *testing.T) {
 			wantDeliver:  true,
 			wantMarkSent: true,
 		},
+		{
+			name:                  "undeliverable marks undeliverable, not sent",
+			deliverErr:            ErrUndeliverable,
+			wantDeliver:           true,
+			wantMarkUndeliverable: true,
+		},
+		{
+			name:                  "undeliverable propagates MarkUndeliverable error",
+			deliverErr:            ErrUndeliverable,
+			markUndeliverableErr:  errMarkUndeliverable,
+			wantErrIs:             errMarkUndeliverable,
+			wantDeliver:           true,
+			wantMarkUndeliverable: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &stubOutbox{
-				markSentErr:    tt.markSentErr,
-				markExpiredErr: tt.markExpiredErr,
+				markSentErr:          tt.markSentErr,
+				markExpiredErr:       tt.markExpiredErr,
+				markUndeliverableErr: tt.markUndeliverableErr,
 			}
 
 			var deliverCalls int
@@ -160,6 +188,13 @@ func TestDeliverOne(t *testing.T) {
 			}
 			if tt.wantMarkExpired && out.markExpiredID != notif.ID {
 				t.Errorf("MarkExpired id = %v, want %v", out.markExpiredID, notif.ID)
+			}
+
+			if got := out.markUndeliverableCalls > 0; got != tt.wantMarkUndeliverable {
+				t.Errorf("MarkUndeliverable called = %v, want %v", got, tt.wantMarkUndeliverable)
+			}
+			if tt.wantMarkUndeliverable && out.markUndeliverableID != notif.ID {
+				t.Errorf("MarkUndeliverable id = %v, want %v", out.markUndeliverableID, notif.ID)
 			}
 		})
 	}

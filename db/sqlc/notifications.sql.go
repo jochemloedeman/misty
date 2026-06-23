@@ -189,3 +189,28 @@ func (q *Queries) MarkNotificationSent(ctx context.Context, arg MarkNotification
 	)
 	return i, err
 }
+
+const markNotificationUndeliverable = `-- name: MarkNotificationUndeliverable :one
+UPDATE
+    notifications
+SET
+    status = 'undeliverable'
+WHERE
+    id = $1 RETURNING id, recipient_id, message, sent_at, location_name, fog_start, fog_end, status
+`
+
+func (q *Queries) MarkNotificationUndeliverable(ctx context.Context, id pgtype.UUID) (Notification, error) {
+	row := q.db.QueryRow(ctx, markNotificationUndeliverable, id)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.RecipientID,
+		&i.Message,
+		&i.SentAt,
+		&i.LocationName,
+		&i.FogStart,
+		&i.FogEnd,
+		&i.Status,
+	)
+	return i, err
+}

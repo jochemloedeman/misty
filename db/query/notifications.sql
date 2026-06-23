@@ -55,3 +55,11 @@ SET
     status = 'expired'
 WHERE
     id = sqlc.arg('id') RETURNING *;
+
+-- name: MarkNotificationUndeliverable :one
+UPDATE
+    notifications
+SET
+    status = 'undeliverable'
+WHERE
+    id = sqlc.arg('id') RETURNING *;

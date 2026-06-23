@@ -14,9 +14,10 @@ import (
 type NotificationStatus string
 
 const (
-	NotificationStatusPending NotificationStatus = "pending"
-	NotificationStatusSent    NotificationStatus = "sent"
-	NotificationStatusExpired NotificationStatus = "expired"
+	NotificationStatusPending       NotificationStatus = "pending"
+	NotificationStatusSent          NotificationStatus = "sent"
+	NotificationStatusExpired       NotificationStatus = "expired"
+	NotificationStatusUndeliverable NotificationStatus = "undeliverable"
 )
 
 func (e *NotificationStatus) Scan(src interface{}) error {

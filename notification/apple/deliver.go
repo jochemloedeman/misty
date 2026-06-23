@@ -33,7 +33,7 @@ func NewDeliverer(
 		}
 		if deviceToken == "" {
 			slog.WarnContext(ctx, "no push token for user, skipping", "recipient_id", notif.RecipientID)
-			return nil
+			return notification.ErrUndeliverable
 		}
 
 		p := payload.NewPayload().
@@ -60,7 +60,7 @@ func NewDeliverer(
 			if err := tokens.ClearPushToken(ctx, notif.RecipientID, deviceToken); err != nil {
 				return fmt.Errorf("clear unregistered token for %s: %w", notif.RecipientID, err)
 			}
-			return nil
+			return notification.ErrUndeliverable
 		}
 		if !resp.Sent() {
 			return fmt.Errorf("apns rejected notification %s: %d %s", notif.ID, resp.StatusCode, resp.Reason)

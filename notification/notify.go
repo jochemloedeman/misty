@@ -20,11 +20,17 @@ var (
 	meter  = otel.Meter("github.com/jochemloedeman/misty/notification")
 )
 
+// ErrUndeliverable signals that a notification reached no device — the recipient
+// has no push token, or Apple reported the token as unregistered. It is terminal,
+// not a transient failure: retrying will not help until a new token is registered.
+var ErrUndeliverable = errors.New("no deliverable push token")
+
 type outbox interface {
 	ListUnsent(ctx context.Context) ([]Fog, error)
 	Find(ctx context.Context, id uuid.UUID) (Fog, bool, error)
 	MarkSent(ctx context.Context, id uuid.UUID, sentAt time.Time) error
 	MarkExpired(ctx context.Context, id uuid.UUID) error
+	MarkUndeliverable(ctx context.Context, id uuid.UUID) error
 }
 
 type deliver func(context.Context, Fog) error
@@ -32,9 +38,10 @@ type deliver func(context.Context, Fog) error
 type deliveryOutcome string
 
 const (
-	outcomeDelivered deliveryOutcome = "delivered"
-	outcomeExpired   deliveryOutcome = "expired"
-	outcomeFailed    deliveryOutcome = "failed"
+	outcomeDelivered     deliveryOutcome = "delivered"
+	outcomeExpired       deliveryOutcome = "expired"
+	outcomeFailed        deliveryOutcome = "failed"
+	outcomeUndeliverable deliveryOutcome = "undeliverable"
 )
 
 type metrics struct {
@@ -137,6 +144,15 @@ func (n *Notifier) deliverOne(ctx context.Context, notif Fog) (err error) {
 	}
 
 	if err := n.deliver(ctx, notif); err != nil {
+		if errors.Is(err, ErrUndeliverable) {
+			outcome = outcomeUndeliverable
+			slog.InfoContext(ctx, "notification undeliverable, no push token",
+				"notification_id", notif.ID, "recipient_id", notif.RecipientID)
+			if err := n.outbox.MarkUndeliverable(ctx, notif.ID); err != nil {
+				return fmt.Errorf("mark notification %s undeliverable: %w", notif.ID, err)
+			}
+			return nil
+		}
 		return fmt.Errorf("deliver notification %s: %w", notif.ID, err)
 	}
 	if err := n.outbox.MarkSent(ctx, notif.ID, n.now()); err != nil {

@@ -45,19 +45,21 @@ func (f *fakePusher) PushWithContext(apns2.Context, *apns2.Notification) (*apns2
 
 func TestNewDeliverer(t *testing.T) {
 	tests := []struct {
-		name        string
-		resolver    stubResolver
-		pusher      fakePusher
-		wantErr     bool
-		wantCleared bool
-		wantPushed  bool
+		name              string
+		resolver          stubResolver
+		pusher            fakePusher
+		wantErr           bool
+		wantUndeliverable bool
+		wantCleared       bool
+		wantPushed        bool
 	}{
 		{
-			name:        "410 clears token",
-			resolver:    stubResolver{token: testToken},
-			pusher:      fakePusher{resp: &apns2.Response{StatusCode: 410}},
-			wantCleared: true,
-			wantPushed:  true,
+			name:              "410 clears token and is undeliverable",
+			resolver:          stubResolver{token: testToken},
+			pusher:            fakePusher{resp: &apns2.Response{StatusCode: 410}},
+			wantUndeliverable: true,
+			wantCleared:       true,
+			wantPushed:        true,
 		},
 		{
 			name:        "410 clear fails",
@@ -81,8 +83,9 @@ func TestNewDeliverer(t *testing.T) {
 			wantPushed: true,
 		},
 		{
-			name:     "empty token skips",
-			resolver: stubResolver{token: ""},
+			name:              "empty token is undeliverable",
+			resolver:          stubResolver{token: ""},
+			wantUndeliverable: true,
 		},
 		{
 			name:     "resolve error",
@@ -107,8 +110,19 @@ func TestNewDeliverer(t *testing.T) {
 			notif := notification.Fog{ID: uuid.New(), RecipientID: uuid.New()}
 			err := deliver(t.Context(), notif)
 
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			switch {
+			case tt.wantUndeliverable:
+				if !errors.Is(err, notification.ErrUndeliverable) {
+					t.Fatalf("error = %v, want ErrUndeliverable", err)
+				}
+			case tt.wantErr:
+				if err == nil || errors.Is(err, notification.ErrUndeliverable) {
+					t.Fatalf("error = %v, want a non-nil delivery error", err)
+				}
+			default:
+				if err != nil {
+					t.Fatalf("error = %v, want nil", err)
+				}
 			}
 
 			if resolver.clearCalled != tt.wantCleared {

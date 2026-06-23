@@ -114,3 +114,11 @@ func (o *pgOutbox) MarkExpired(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (o *pgOutbox) MarkUndeliverable(ctx context.Context, id uuid.UUID) error {
+	_, err := o.queries.MarkNotificationUndeliverable(ctx, dbUUID(id))
+	if err != nil {
+		return fmt.Errorf("mark notification undeliverable: %w", err)
+	}
+	return nil
+}
