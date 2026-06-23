@@ -8,6 +8,7 @@ services:
       APNS_DEVELOPMENT: "true"
       REFRESH_INTERVAL: ${REFRESH_INTERVAL:-}
       NOTIFY_INTERVAL: ${NOTIFY_INTERVAL:-}
+      APNS_SIMULATE_STATUS: ${APNS_SIMULATE_STATUS:-}
 
   db:
     ports:

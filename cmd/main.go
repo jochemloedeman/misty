@@ -258,7 +258,18 @@ func run() (err error) {
 	)
 
 	var deliverFn func(context.Context, notification.Fog) error
-	if cfg.APNS != nil {
+	if cfg.APNSSimulateStatus != 0 {
+		slog.WarnContext(ctx, "APNs simulated — not contacting Apple",
+			"simulated_status", cfg.APNSSimulateStatus)
+		deliverFn = apple.NewDeliverer(
+			apple.StaticPusher{StatusCode: cfg.APNSSimulateStatus},
+			apple.NewPGTokenResolver(queries),
+			"dev.simulated",
+		)
+	} else {
+		if cfg.APNS == nil {
+			return fmt.Errorf("APNs not configured: set APNS_KEY_FILE/APNS_KEY_ID/APNS_TEAM_ID/APNS_TOPIC, or set APNS_SIMULATE_STATUS for dev")
+		}
 		authKey, err := token.AuthKeyFromFile(cfg.APNS.KeyPath)
 		if err != nil {
 			return fmt.Errorf("invalid auth key: %w", err)
@@ -281,15 +292,6 @@ func run() (err error) {
 			env = "development"
 		}
 		slog.InfoContext(ctx, "APNs delivery enabled", "topic", cfg.APNS.Topic, "environment", env)
-	} else {
-		slog.WarnContext(ctx, "APNs not configured — notifications will be logged only")
-		deliverFn = func(ctx context.Context, notif notification.Fog) error {
-			slog.InfoContext(ctx, "notification delivered (no-op)",
-				"notification_id", notif.ID,
-				"recipient_id", notif.RecipientID,
-			)
-			return nil
-		}
 	}
 
 	notifier, err := notification.NewNotifier(notification.NewOutbox(queries), deliverFn, clk.Now)
