@@ -17,7 +17,12 @@ services:
   caddy:
     profiles: [disabled]
 
+  db-backup:
+    profiles: [disabled]
+
 secrets:
+  rclone_conf:
+    file: /dev/null
   cloudflare_api_token:
     file: /dev/null
   aop_ca_cert:

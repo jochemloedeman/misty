@@ -45,3 +45,15 @@ plan:
 [group('infra')]
 apply:
     {{ pass }} tofu -chdir=infra apply
+
+[group('backup')]
+backup-now:
+    {{ compose_obs }} run --rm db-backup /backup.sh
+
+[group('backup')]
+backup-list:
+    {{ compose_obs }} run --rm db-backup sh -c 'rclone lsl "$RCLONE_REMOTE"'
+
+[group('backup')]
+restore key:
+    {{ compose_obs }} run --rm db-backup sh -c 'export PGPASSWORD=$(cat /run/secrets/postgres_password); rclone cat "$RCLONE_REMOTE/{{ key }}" | pg_restore --clean --if-exists --no-owner -d "$PGDATABASE"'

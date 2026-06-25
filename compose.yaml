@@ -79,6 +79,43 @@ services:
     networks:
       - backend
 
+  db-backup:
+    image: ghcr.io/${GITHUB_REPOSITORY}/misty/backup:latest
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      RCLONE_CONFIG: /run/secrets/rclone_conf
+      RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-r2crypt:dumps}
+    secrets:
+      - postgres_password
+      - rclone_conf
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
   caddy:
     image: ghcr.io/${GITHUB_REPOSITORY}/misty/caddy:latest
     restart: unless-stopped
@@ -132,6 +169,8 @@ secrets:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/aop_ca_cert.pem
   postgres_password:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/postgres_password.txt
+  rclone_conf:
+    file: ${SECRETS_DIR:-/etc/misty/secrets}/rclone.conf
   signing_secret:
     file: ${SECRETS_DIR:-/etc/misty/secrets}/signing_secret.txt
   signing_secret_previous:
