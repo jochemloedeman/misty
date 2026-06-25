@@ -116,16 +116,8 @@ func (f *Forecaster) Forecast(
 	}
 
 	reqURL := buildURL(location, horizon, intconf)
-	slog.DebugContext(
-		ctx,
-		"fetching forecast",
-		"location",
-		location.Name,
-		"interval",
-		horizon.Interval,
-		"steps",
-		horizon.Steps,
-	)
+	slog.DebugContext(ctx, "fetching forecast",
+		"location", location.Name, "interval", horizon.Interval, "steps", horizon.Steps)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {

@@ -141,14 +141,8 @@ func runNotifyLoop(
 		case envelope := <-notifyQueue.C():
 			ctx := envelope.Context(ctx)
 			if err := notifier.NotifyOne(ctx, envelope.Payload.ID); err != nil {
-				slog.ErrorContext(
-					ctx,
-					"immediate notification failed",
-					"notification_id",
-					envelope.Payload.ID,
-					"error",
-					err,
-				)
+				slog.ErrorContext(ctx, "immediate notification failed",
+					"notification_id", envelope.Payload.ID, "error", err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -268,7 +262,9 @@ func run() (err error) {
 		)
 	} else {
 		if cfg.APNS == nil {
-			return fmt.Errorf("APNs not configured: set APNS_KEY_FILE/APNS_KEY_ID/APNS_TEAM_ID/APNS_TOPIC, or set APNS_SIMULATE_STATUS for dev")
+			return fmt.Errorf(
+				"APNs not configured: set APNS_KEY_FILE/APNS_KEY_ID/APNS_TEAM_ID/APNS_TOPIC, or set APNS_SIMULATE_STATUS for dev",
+			)
 		}
 		authKey, err := token.AuthKeyFromFile(cfg.APNS.KeyPath)
 		if err != nil {

@@ -11,6 +11,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       SIGNING_SECRET_FILE: /run/secrets/signing_secret

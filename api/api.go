@@ -311,13 +311,8 @@ func (s *API) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.InfoContext(
-		r.Context(),
-		"monitor created",
-		"monitor_id", created.ID,
-		"user_id", uid,
-		"location", created.Location.Name,
-	)
+	slog.InfoContext(r.Context(), "monitor created",
+		"monitor_id", created.ID, "user_id", uid, "location", created.Location.Name)
 
 	writeJSON(r.Context(), w, http.StatusCreated, toMonitorResponse(created))
 }
@@ -342,12 +337,8 @@ func (s *API) SetMonitorStatus(activate bool) http.HandlerFunc {
 			return
 		}
 
-		slog.InfoContext(
-			r.Context(),
-			"monitor status changed",
-			"monitor_id", updated.ID,
-			"is_active", updated.IsActive,
-		)
+		slog.InfoContext(r.Context(), "monitor status changed",
+			"monitor_id", updated.ID, "is_active", updated.IsActive)
 
 		writeJSON(r.Context(), w, http.StatusOK, toMonitorResponse(updated))
 	}
