@@ -47,6 +47,10 @@ apply:
     {{ pass }} tofu -chdir=infra apply
 
 [group('backup')]
+deploy-rclone-config:
+    {{ pass }} scripts/deploy-rclone-config.sh
+
+[group('backup')]
 backup-now:
     {{ compose_obs }} run --rm db-backup /backup.sh
 
