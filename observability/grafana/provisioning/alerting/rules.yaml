@@ -107,6 +107,45 @@ groups:
         annotations:
           summary: "A refresh cycle ended in a non-transient error in the last hour (transient Open-Meteo/network errors are excluded)."
 
+      - uid: misty-backup-stalled
+        title: Misty database backup stalled
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 93600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              # Success signal from backup/backup.sh. service_name="db-backup"
+              # comes from the compose-service label via Alloy.
+              expr: sum(count_over_time({service_name="db-backup"} |= `backup complete` [26h]))
+              queryType: instant
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+              refId: B
+        # NoData = no successful backup logged at all (container down, cron not
+        # firing, OOM-killed before the trap, log pipeline broken, or never
+        # deployed) -> alert. Cron is 0 3 * * *; 26h gives a 2h grace after the
+        # expected run. Adjust [26h] and from:93600 together if backup/crontab changes.
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "No successful database backup in 26h — the nightly pg_dump to R2 has not completed. Backups may be silently failing."
+
   - orgId: 1
     name: misty-warning
     folder: Misty

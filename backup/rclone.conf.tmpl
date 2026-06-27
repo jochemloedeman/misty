@@ -1,0 +1,14 @@
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = ${R2_ACCESS_KEY_ID}
+secret_access_key = ${R2_SECRET_ACCESS_KEY}
+region = auto
+endpoint = ${R2_ENDPOINT}
+acl = private
+no_check_bucket = true
+
+[r2crypt]
+type = crypt
+remote = r2:misty-backups
+password = {{ pass://misty/r2_backup_crypt/password }}

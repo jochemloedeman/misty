@@ -3,6 +3,11 @@ variable "cloudflare_zone_id" {
   type        = string
 }
 
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID for R2 storage"
+  type        = string
+}
+
 variable "ssh_public_key_path" {
   description = "Path to SSH public key file"
   type        = string
