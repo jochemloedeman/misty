@@ -25,8 +25,11 @@ resource "cloudflare_account_token" "r2_backup" {
       { id = data.cloudflare_account_api_token_permission_groups_list.r2_write.result[0].id },
       { id = data.cloudflare_account_api_token_permission_groups_list.r2_read.result[0].id },
     ]
+    # Scope to the misty-backups bucket only. Cloudflare's R2 bucket resource key
+    # is <account_id>_<jurisdiction>_<bucket>; jurisdiction is "default" because the
+    # bucket sets no `jurisdiction` (location "weur" is a region hint, not a jurisdiction).
     resources = jsonencode({
-      "com.cloudflare.api.account.${var.cloudflare_account_id}" = "*"
+      "com.cloudflare.edge.r2.bucket.${var.cloudflare_account_id}_default_${cloudflare_r2_bucket.this.name}" = "*"
     })
   }]
 }

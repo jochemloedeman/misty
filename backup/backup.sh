@@ -14,7 +14,18 @@ log info "backup started" "remote=${RCLONE_REMOTE}"
 
 pg_dump -Fc | rclone rcat "$object"
 
-bytes="$(rclone size "$object" --json | sed 's/.*"bytes":\([0-9]*\).*/\1/')"
+bytes="$(rclone lsf --format s "$object")"
+
+# pg_restore --list reads only the archive TOC and may close the stream early,
+# sending SIGPIPE to rclone cat; only pg_restore's own exit status tells us the
+# archive is corrupt, so drop pipefail for this one pipeline.
+set +o pipefail
+if ! rclone cat "$object" | pg_restore --list >/dev/null; then
+  log error "backup not restorable" "object=misty-${timestamp}.pgcustom"
+  exit 1
+fi
+set -o pipefail
+
 log info "backup complete" "object=misty-${timestamp}.pgcustom bytes=${bytes}"
 
 rclone delete "$RCLONE_REMOTE" --min-age "${RETENTION_DAYS}d"
