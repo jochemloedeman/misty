@@ -7,25 +7,15 @@ locals {
 
 data "cloudflare_ip_ranges" "this" {}
 
-resource "hcloud_floating_ip" "this" {
-  type          = "ipv4"
-  home_location = "fsn1"
-}
-
-resource "hcloud_floating_ip_assignment" "this" {
-  floating_ip_id = hcloud_floating_ip.this.id
-  server_id      = hcloud_server.this.id
-}
-
 resource "hcloud_server" "this" {
   name        = "misty"
   image       = "ubuntu-24.04"
   server_type = "cx23"
   location    = "fsn1"
   ssh_keys    = [hcloud_ssh_key.this.id]
+  backups     = true
 
   user_data = templatefile("${path.module}/templates/cloud-init.yml.tftpl", {
-    floating_ip       = hcloud_floating_ip.this.ip_address
     tailscale_authkey = tailscale_tailnet_key.this.key
   })
 

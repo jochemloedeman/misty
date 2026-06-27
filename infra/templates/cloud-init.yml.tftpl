@@ -10,15 +10,6 @@ users:
     sudo: false
 disable_root: true
 write_files:
-  - path: /etc/netplan/60-floating-ip.yaml
-    permissions: '0600'
-    content: |
-      network:
-        version: 2
-        ethernets:
-          eth0:
-            addresses:
-              - ${floating_ip}/32
   - path: /etc/sysctl.d/99-tailscale.conf
     content: |
       net.ipv4.ip_forward = 1

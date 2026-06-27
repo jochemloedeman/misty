@@ -2,7 +2,7 @@ resource "cloudflare_dns_record" "misty" {
   zone_id = var.cloudflare_zone_id
   name    = "misty"
   type    = "A"
-  content = hcloud_floating_ip.this.ip_address
+  content = hcloud_server.this.ipv4_address
   proxied = true
   ttl     = 1
 }
