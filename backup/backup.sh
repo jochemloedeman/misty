@@ -16,17 +16,19 @@ pg_dump -Fc | rclone rcat "$object"
 
 bytes="$(rclone lsf --format s "$object")"
 
-# pg_restore --list reads only the archive TOC and may close the stream early,
-# sending SIGPIPE to rclone cat; only pg_restore's own exit status tells us the
-# archive is corrupt, so drop pipefail for this one pipeline.
-set +o pipefail
-if ! rclone cat "$object" | pg_restore --list >/dev/null; then
+# -f /dev/null reads the whole archive (script mode), unlike --list which only
+# reads the TOC, so a truncated dump and a failed rclone cat both fail here.
+if ! rclone cat "$object" | pg_restore -f /dev/null; then
   log error "backup not restorable" "object=misty-${timestamp}.pgcustom"
   exit 1
 fi
-set -o pipefail
 
 log info "backup complete" "object=misty-${timestamp}.pgcustom bytes=${bytes}"
+
+if ! [[ "$RETENTION_DAYS" =~ ^[1-9][0-9]*$ ]]; then
+  log error "invalid retention, skipping prune" "RETENTION_DAYS=${RETENTION_DAYS}"
+  exit 1
+fi
 
 rclone delete "$RCLONE_REMOTE" --min-age "${RETENTION_DAYS}d"
 log info "retention pruned" "older_than=${RETENTION_DAYS}d"
