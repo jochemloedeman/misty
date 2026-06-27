@@ -16,8 +16,6 @@ pg_dump -Fc | rclone rcat "$object"
 
 bytes="$(rclone lsf --format s "$object")"
 
-# -f /dev/null reads the whole archive (script mode), unlike --list which only
-# reads the TOC, so a truncated dump and a failed rclone cat both fail here.
 if ! rclone cat "$object" | pg_restore -f /dev/null; then
   log error "backup not restorable" "object=misty-${timestamp}.pgcustom"
   exit 1
