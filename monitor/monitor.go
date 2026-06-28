@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const maxSeparation = time.Hour
+
 var (
 	ErrNotFound          = errors.New("monitor not found")
 	ErrLimitReached      = errors.New("monitor limit reached")
@@ -41,6 +43,14 @@ type Location struct {
 type RiskWindow struct {
 	Start time.Time
 	End   time.Time
+}
+
+func (r RiskWindow) Equal(w RiskWindow) bool {
+	return r.Start.Equal(w.Start) && r.End.Equal(w.End)
+}
+
+func (r RiskWindow) Disjoint(w RiskWindow, margin time.Duration) bool {
+	return r.Start.After(w.End.Add(margin)) || r.End.Before(w.Start.Add(-margin))
 }
 
 type RiskWindowChangeType int
@@ -156,26 +166,61 @@ func fogRiskWindow(forecasts []Forecast, interval time.Duration) *RiskWindow {
 	return &RiskWindow{Start: start, End: end.Add(interval)}
 }
 
+type windowTransition int
+
+const (
+	stayClear windowTransition = iota
+	cleared
+	appeared
+	stable
+	replaced
+	shifted
+)
+
+func classifyTransition(o, n *RiskWindow, now time.Time) windowTransition {
+	if n == nil {
+		if o == nil {
+			return stayClear
+		}
+		return cleared
+	}
+
+	if o == nil || o.End.Before(now) {
+		return appeared
+	}
+
+	// both windows present and the old one is still live
+	switch {
+	case n.Equal(*o):
+		return stable
+	case n.Disjoint(*o, maxSeparation):
+		return replaced
+	default:
+		return shifted
+	}
+}
+
 func (m Monitor) ReconcileRiskWindow(
 	now time.Time,
 	forecasts []Forecast,
 	interval time.Duration,
 ) (Monitor, RiskWindowChange) {
 	newWindow := fogRiskWindow(forecasts, interval)
-
-	if newWindow == nil && m.RiskWindow == nil {
-		return m, RiskWindowChange{}
-	}
-	if newWindow == nil {
+	switch classifyTransition(m.RiskWindow, newWindow, now) {
+	case cleared:
 		m.RiskWindow = nil
 		return m, RiskWindowChange{Type: Revoked}
-	}
-	if m.RiskWindow == nil || m.RiskWindow.End.Before(now) {
+	case appeared, replaced:
 		m.RiskWindow = newWindow
 		return m, RiskWindowChange{Type: New, RiskWindow: newWindow}
+	case shifted:
+		m.RiskWindow = newWindow
+		return m, RiskWindowChange{Type: Changed, RiskWindow: newWindow}
+	case stable:
+		return m, RiskWindowChange{RiskWindow: m.RiskWindow}
+	default:
+		return m, RiskWindowChange{}
 	}
-
-	return m.reconcileExistingRiskWindow(newWindow)
 }
 
 func (m Monitor) Deactivate() Monitor {
@@ -193,20 +238,4 @@ func (m Monitor) Activate() Monitor {
 	}
 	m.IsActive = true
 	return m
-}
-
-func (m Monitor) reconcileExistingRiskWindow(
-	newWindow *RiskWindow,
-) (Monitor, RiskWindowChange) {
-	if newWindow.Start.Equal(m.RiskWindow.Start) &&
-		newWindow.End.Equal(m.RiskWindow.End) {
-		return m, RiskWindowChange{RiskWindow: m.RiskWindow}
-	}
-	if newWindow.Start.After(m.RiskWindow.End) ||
-		newWindow.End.Before(m.RiskWindow.Start) {
-		m.RiskWindow = newWindow
-		return m, RiskWindowChange{Type: New, RiskWindow: newWindow}
-	}
-	m.RiskWindow = newWindow
-	return m, RiskWindowChange{Type: Changed, RiskWindow: newWindow}
 }
