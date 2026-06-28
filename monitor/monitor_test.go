@@ -388,7 +388,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 			},
 		},
 		{
-			name: "fog - existing risk window - non-overlapping new risk window after",
+			name: "fog - new window within separation margin after - changed",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
@@ -410,7 +410,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: New,
+				Type: Changed,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime.Add(3 * time.Hour),
 					End:   defaultTime.Add(5 * time.Hour),
@@ -418,7 +418,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 			},
 		},
 		{
-			name: "fog - existing risk window - non-overlapping new risk window before",
+			name: "fog - new window within separation margin before - changed",
 			monitor: Monitor{
 				ID:       defaultUUID,
 				UserID:   defaultUUID,
@@ -440,7 +440,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: New,
+				Type: Changed,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
@@ -501,6 +501,101 @@ func TestReconcileRiskWindow(t *testing.T) {
 			}
 			if diff := cmp.Diff(tc.expected.RiskWindow, gotMonitor.RiskWindow); diff != "" {
 				t.Errorf("ReconcileRiskWindow() Monitor.RiskWindow mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestClassifyTransition(t *testing.T) {
+	live := &RiskWindow{Start: defaultTime, End: defaultTime.Add(2 * time.Hour)}
+	expired := &RiskWindow{Start: defaultTime.Add(-2 * time.Hour), End: defaultTime.Add(-1 * time.Hour)}
+
+	testCases := []struct {
+		name      string
+		old       *RiskWindow
+		newWindow *RiskWindow
+		want      windowTransition
+	}{
+		{
+			name: "stayClear",
+			want: stayClear,
+		},
+		{
+			name: "cleared",
+			old:  live,
+			want: cleared,
+		},
+		{
+			name:      "appeared - expired old window",
+			old:       expired,
+			newWindow: &RiskWindow{Start: defaultTime, End: defaultTime.Add(2 * time.Hour)},
+			want:      appeared,
+		},
+		{
+			name:      "stable",
+			old:       live,
+			newWindow: &RiskWindow{Start: defaultTime, End: defaultTime.Add(2 * time.Hour)},
+			want:      stable,
+		},
+		{
+			name:      "replaced - disjoint window beyond separation margin",
+			old:       live,
+			newWindow: &RiskWindow{Start: defaultTime.Add(4 * time.Hour), End: defaultTime.Add(6 * time.Hour)},
+			want:      replaced,
+		},
+		{
+			name:      "shifted - non-overlapping window within separation margin",
+			old:       live,
+			newWindow: &RiskWindow{Start: defaultTime.Add(3 * time.Hour), End: defaultTime.Add(5 * time.Hour)},
+			want:      shifted,
+		},
+		{
+			name:      "shifted - overlapping window",
+			old:       live,
+			newWindow: &RiskWindow{Start: defaultTime, End: defaultTime.Add(3 * time.Hour)},
+			want:      shifted,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := classifyTransition(tc.old, tc.newWindow, defaultTime); got != tc.want {
+				t.Errorf("classifyTransition() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRiskWindowDisjoint(t *testing.T) {
+	window := func(startHours, endHours int) RiskWindow {
+		return RiskWindow{
+			Start: defaultTime.Add(time.Duration(startHours) * time.Hour),
+			End:   defaultTime.Add(time.Duration(endHours) * time.Hour),
+		}
+	}
+
+	testCases := []struct {
+		name   string
+		a      RiskWindow
+		b      RiskWindow
+		margin time.Duration
+		want   bool
+	}{
+		{"overlapping", window(0, 3), window(2, 5), time.Hour, false},
+		{"gap below margin", window(0, 2), window(3, 5), 2 * time.Hour, false},
+		{"gap equals margin", window(0, 2), window(4, 6), 2 * time.Hour, false},
+		{"gap exceeds margin", window(0, 2), window(5, 7), 2 * time.Hour, true},
+		{"adjacent, zero margin", window(0, 2), window(2, 4), 0, false},
+		{"clear gap, zero margin", window(0, 2), window(3, 5), 0, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.a.Disjoint(tc.b, tc.margin); got != tc.want {
+				t.Errorf("a.Disjoint(b, %s) = %t, want %t", tc.margin, got, tc.want)
+			}
+			if got := tc.b.Disjoint(tc.a, tc.margin); got != tc.want {
+				t.Errorf("b.Disjoint(a, %s) = %t, want %t (not symmetric)", tc.margin, got, tc.want)
 			}
 		})
 	}
