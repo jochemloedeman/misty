@@ -48,11 +48,11 @@ apply:
 
 [group('backup')]
 deploy-rclone-config:
-    {{ pass }} scripts/render-rclone-config.sh | ssh misty "sudo tee /etc/misty/secrets/rclone.conf > /dev/null && sudo chmod 600 /etc/misty/secrets/rclone.conf"
+    {{ pass }} scripts/render-rclone-config.sh | ssh misty "sudo tee /etc/misty/secrets/rclone.conf > /dev/null && sudo chmod 644 /etc/misty/secrets/rclone.conf"
 
 [group('backup')]
 deploy-rclone-config-local:
-    {{ pass }} scripts/render-rclone-config.sh > secrets/rclone.conf && chmod 600 secrets/rclone.conf
+    {{ pass }} scripts/render-rclone-config.sh > secrets/rclone.conf && chmod 644 secrets/rclone.conf
 
 [group('backup')]
 backup-now:

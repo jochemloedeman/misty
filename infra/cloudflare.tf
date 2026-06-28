@@ -31,6 +31,11 @@ resource "cloudflare_zone_setting" "tls_1_3" {
   value      = "zrt"
 }
 
+resource "cloudflare_bot_management" "this" {
+  zone_id            = var.cloudflare_zone_id
+  ai_bots_protection = "block"
+}
+
 resource "cloudflare_ruleset" "waf_managed" {
   zone_id = var.cloudflare_zone_id
   name    = "Managed WAF ruleset"

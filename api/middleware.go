@@ -83,35 +83,36 @@ func MaxBodySize(n int64) func(http.Handler) http.Handler {
 	}
 }
 
-func RequestLogger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" {
-			next.ServeHTTP(w, r)
-			return
-		}
+func RequestLogger(skipPaths []string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if slices.Contains(skipPaths, r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		start := time.Now()
-		writer := &StatusResponseWriter{
-			ResponseWriter: w,
-			StatusCode:     http.StatusOK,
-		}
-		next.ServeHTTP(writer, r)
+			start := time.Now()
+			writer := &StatusResponseWriter{
+				ResponseWriter: w,
+				StatusCode:     http.StatusOK,
+			}
+			next.ServeHTTP(writer, r)
 
-		attrs := []any{
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", writer.StatusCode,
-			"duration", time.Since(start),
-		}
-		switch {
-		case writer.StatusCode >= http.StatusInternalServerError:
-			slog.ErrorContext(r.Context(), "completed", attrs...)
-		case writer.StatusCode >= http.StatusBadRequest:
-			slog.WarnContext(r.Context(), "completed", attrs...)
-		default:
-			slog.InfoContext(r.Context(), "completed", attrs...)
-		}
-	})
+			msg := r.Method + " " + r.URL.Path
+			attrs := []any{
+				"status", writer.StatusCode,
+				"duration", time.Since(start),
+			}
+			switch {
+			case writer.StatusCode >= http.StatusInternalServerError:
+				slog.ErrorContext(r.Context(), msg, attrs...)
+			case writer.StatusCode >= http.StatusBadRequest:
+				slog.WarnContext(r.Context(), msg, attrs...)
+			default:
+				slog.DebugContext(r.Context(), msg, attrs...)
+			}
+		})
+	}
 }
 
 type StatusResponseWriter struct {

@@ -60,7 +60,7 @@ func runServer(
 	instrumented := otelhttp.NewHandler(mux, "server", otelhttp.WithFilter(requestFilter))
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: api.Compose(api.RequestLogger, api.MaxBodySize(maxBodySize))(instrumented),
+		Handler: api.Compose(api.RequestLogger(skipPaths), api.MaxBodySize(maxBodySize))(instrumented),
 	}
 
 	go func() {
