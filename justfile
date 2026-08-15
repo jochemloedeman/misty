@@ -1,5 +1,5 @@
-compose_local := "docker compose -f compose.yaml -f compose.local.yaml -f compose.observability.yaml"
-compose_obs := "docker compose -f compose.yaml -f compose.observability.yaml"
+compose_local := "docker compose -f compose.yaml -f compose.local.yaml -f compose.observability.yaml -f compose.analytics.yaml"
+compose_obs := "docker compose -f compose.yaml -f compose.observability.yaml -f compose.analytics.yaml"
 pass := "pass-cli run --env-file .env --"
 
 [group('local')]
@@ -61,6 +61,18 @@ backup-now:
 [group('backup')]
 backup-list:
     {{ compose_obs }} run --rm db-backup sh -c 'rclone lsl "$RCLONE_REMOTE"'
+
+[group('analytics')]
+snapshot-now:
+    {{ compose_local }} run --rm analytics /snapshot.sh
+
+[group('analytics')]
+analytics-shell:
+    {{ compose_local }} run --rm analytics duckdb -readonly /data/misty.duckdb
+
+[group('analytics')]
+analytics-serve:
+    tailscale serve --bg --https=8445 http://127.0.0.1:8001
 
 [group('backup')]
 restore key:

@@ -1,0 +1,118 @@
+services:
+  analytics-init:
+    image: ghcr.io/${GITHUB_REPOSITORY}/analytics:latest
+    restart: "no"
+    command: ["/snapshot.sh"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+    volumes:
+      - analytics_data:/data
+    secrets:
+      - postgres_password
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+  analytics:
+    image: ghcr.io/${GITHUB_REPOSITORY}/analytics:latest
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      analytics-init:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+    volumes:
+      - analytics_data:/data
+    secrets:
+      - postgres_password
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+  analytics-mcp:
+    image: ghcr.io/${GITHUB_REPOSITORY}/analytics:latest
+    restart: unless-stopped
+    command:
+      - mcp-server-motherduck
+      - --db-path
+      - /data/misty.duckdb
+      - --ephemeral-connections
+      - --home-dir
+      - /tmp
+      - --query-timeout
+      - "120"
+      - --transport
+      - http
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      analytics-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - analytics_data:/data:ro
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  analytics_data:

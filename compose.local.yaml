@@ -20,6 +20,20 @@ services:
   db-backup:
     profiles: [disabled]
 
+  analytics-init:
+    build: ./analytics
+    image: misty-analytics-local
+
+  analytics:
+    build: ./analytics
+    image: misty-analytics-local
+
+  analytics-mcp:
+    build: ./analytics
+    image: misty-analytics-local
+    ports:
+      - "8001:8000"
+
 secrets:
   rclone_conf:
     file: /dev/null
