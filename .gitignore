@@ -45,3 +45,6 @@ secrets/
 .DS_Store
 
 dist/
+.claude/
+.mcp.json
+.codegraph
