@@ -59,7 +59,7 @@ func (q *Queries) ListForecastsByMonitorIDAndHorizon(ctx context.Context, arg Li
 	return items, nil
 }
 
-const upsertForecast = `-- name: UpsertForecast :one
+const upsertForecasts = `-- name: UpsertForecasts :exec
 INSERT INTO
     forecasts (
         forecast_at,
@@ -71,17 +71,16 @@ INSERT INTO
         visibility,
         weather_code
     )
-VALUES
-    (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        $8
-    ) ON CONFLICT (forecast_at, monitor_id) DO
+SELECT
+    unnest($1::timestamptz[]),
+    $2::uuid,
+    unnest($3::float8[]),
+    unnest($4::float8[]),
+    unnest($5::float8[]),
+    unnest($6::float8[]),
+    unnest($7::float8[]),
+    unnest($8::int[])
+ON CONFLICT (forecast_at, monitor_id) DO
 UPDATE
 SET
     temperature = EXCLUDED.temperature,
@@ -89,22 +88,22 @@ SET
     relative_humidity = EXCLUDED.relative_humidity,
     wind_speed = EXCLUDED.wind_speed,
     visibility = EXCLUDED.visibility,
-    weather_code = EXCLUDED.weather_code RETURNING forecast_at, monitor_id, temperature, dew_point, relative_humidity, wind_speed, visibility, weather_code
+    weather_code = EXCLUDED.weather_code
 `
 
-type UpsertForecastParams struct {
-	ForecastAt       pgtype.Timestamptz
+type UpsertForecastsParams struct {
+	ForecastAt       []pgtype.Timestamptz
 	MonitorID        pgtype.UUID
-	Temperature      float64
-	DewPoint         float64
-	RelativeHumidity float64
-	WindSpeed        float64
-	Visibility       float64
-	WeatherCode      int32
+	Temperature      []float64
+	DewPoint         []float64
+	RelativeHumidity []float64
+	WindSpeed        []float64
+	Visibility       []float64
+	WeatherCode      []int32
 }
 
-func (q *Queries) UpsertForecast(ctx context.Context, arg UpsertForecastParams) (Forecast, error) {
-	row := q.db.QueryRow(ctx, upsertForecast,
+func (q *Queries) UpsertForecasts(ctx context.Context, arg UpsertForecastsParams) error {
+	_, err := q.db.Exec(ctx, upsertForecasts,
 		arg.ForecastAt,
 		arg.MonitorID,
 		arg.Temperature,
@@ -114,16 +113,5 @@ func (q *Queries) UpsertForecast(ctx context.Context, arg UpsertForecastParams) 
 		arg.Visibility,
 		arg.WeatherCode,
 	)
-	var i Forecast
-	err := row.Scan(
-		&i.ForecastAt,
-		&i.MonitorID,
-		&i.Temperature,
-		&i.DewPoint,
-		&i.RelativeHumidity,
-		&i.WindSpeed,
-		&i.Visibility,
-		&i.WeatherCode,
-	)
-	return i, err
+	return err
 }

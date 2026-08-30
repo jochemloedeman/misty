@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,15 +34,15 @@ const (
 	wmoRimeFog = 48
 )
 
-type Transient struct {
+type TransientError struct {
 	Err error
 }
 
-func (t *Transient) Error() string {
+func (t *TransientError) Error() string {
 	return t.Err.Error()
 }
 
-func (t *Transient) Unwrap() error {
+func (t *TransientError) Unwrap() error {
 	return t.Err
 }
 
@@ -92,7 +93,7 @@ type ForecastStore interface {
 		ctx context.Context,
 		monitorID uuid.UUID,
 		forecasts []Forecast,
-	) ([]Forecast, error)
+	) error
 }
 
 type NotificationOutbox interface {
@@ -146,12 +147,13 @@ func newMetrics() (*metrics, error) {
 }
 
 type Refresher struct {
-	clock      Clock
-	forecaster Forecaster
-	runAtom    RunAtomically
-	store      MonitorStore
-	horizon    ForecastHorizon
-	metrics    *metrics
+	clock         Clock
+	forecaster    Forecaster
+	runAtom       RunAtomically
+	store         MonitorStore
+	horizon       ForecastHorizon
+	maxConcurrent int
+	metrics       *metrics
 }
 
 func NewRefresher(
@@ -160,18 +162,23 @@ func NewRefresher(
 	clock Clock,
 	store MonitorStore,
 	horizon ForecastHorizon,
+	maxConcurrent int,
 ) (*Refresher, error) {
+	if maxConcurrent <= 0 {
+		return nil, fmt.Errorf("maxConcurrent must be positive, got %d", maxConcurrent)
+	}
 	m, err := newMetrics()
 	if err != nil {
 		return nil, fmt.Errorf("create monitor metrics: %w", err)
 	}
 	return &Refresher{
-		forecaster: forecaster,
-		runAtom:    runAtom,
-		clock:      clock,
-		store:      store,
-		horizon:    horizon,
-		metrics:    m,
+		forecaster:    forecaster,
+		runAtom:       runAtom,
+		clock:         clock,
+		store:         store,
+		horizon:       horizon,
+		maxConcurrent: maxConcurrent,
+		metrics:       m,
 	}, nil
 }
 
@@ -245,21 +252,31 @@ func (r *Refresher) RefreshAll(ctx context.Context) (err error) {
 		return fmt.Errorf("list active monitors: %w", err)
 	}
 
-	slog.InfoContext(ctx, "refresh started", "monitor_count", len(monitors))
+	var wg sync.WaitGroup
+	errs := make([]error, len(monitors))
+	sem := make(chan struct{}, r.maxConcurrent)
+	for i, m := range monitors {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
 
-	for i := range monitors {
-		if _, err := r.Refresh(ctx, monitors[i]); err != nil {
-			if _, ok := errors.AsType[*Transient](err); ok {
-				slog.WarnContext(ctx, "transient error refreshing monitor", "monitor_id", monitors[i].ID, "error", err)
-				continue
+			if _, err := r.Refresh(ctx, m); err != nil {
+				if _, ok := errors.AsType[*TransientError](err); ok {
+					slog.WarnContext(ctx, "transient error refreshing monitor", "monitor_id", m.ID, "error", err)
+					return
+				}
+				errs[i] = fmt.Errorf("refresh monitor %s: %w", m.ID, err)
 			}
-			return fmt.Errorf("refresh monitor %s: %w", monitors[i].ID, err)
-		}
+		})
+	}
+	wg.Wait()
+	if err := errors.Join(errs...); err != nil {
+		return fmt.Errorf("refresh all monitors: %w", err)
 	}
 
 	users := make(map[uuid.UUID]struct{}, len(monitors))
-	for i := range monitors {
-		users[monitors[i].UserID] = struct{}{}
+	for _, m := range monitors {
+		users[m.UserID] = struct{}{}
 	}
 	r.metrics.usersRefreshed.Record(ctx, int64(len(users)))
 	r.metrics.monitorsRefreshed.Record(ctx, int64(len(monitors)))
@@ -274,7 +291,7 @@ func persist(
 	forecasts []Forecast,
 	change RiskWindowChange,
 ) (*notification.Queued, error) {
-	if _, err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
+	if err := s.ForecastStore.Save(ctx, monitor.ID, forecasts); err != nil {
 		return nil, fmt.Errorf("save forecasts: %w", err)
 	}
 

@@ -20,6 +20,7 @@ services:
       APNS_KEY_ID: ${APNS_KEY_ID:-}
       APNS_TEAM_ID: ${APNS_TEAM_ID:-}
       APNS_TOPIC: ${APNS_TOPIC:-}
+      MAX_CONCURRENT_REFRESHES: ${MAX_CONCURRENT_REFRESHES:-}
     secrets:
       - signing_secret
       - signing_secret_previous

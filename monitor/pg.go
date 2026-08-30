@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -238,35 +240,46 @@ func (s *pgForecastStore) ListForMonitorInRange(
 	return forecasts, nil
 }
 
+func dedupeByTime(forecasts []Forecast) []Forecast {
+	byTime := make(map[int64]Forecast, len(forecasts))
+	for _, forecast := range forecasts {
+		byTime[forecast.Time.UnixNano()] = forecast
+	}
+	return slices.SortedFunc(
+		maps.Values(byTime),
+		func(a, b Forecast) int { return a.Time.Compare(b.Time) },
+	)
+}
+
 func (s *pgForecastStore) Save(
 	ctx context.Context,
 	monitorID uuid.UUID,
 	forecasts []Forecast,
-) ([]Forecast, error) {
-	params := make([]sqlc.UpsertForecastParams, len(forecasts))
-	for i, forecast := range forecasts {
-		params[i] = sqlc.UpsertForecastParams{
-			ForecastAt:       dbTime(forecast.Time),
-			Temperature:      forecast.WeatherVariables.Temperature,
-			DewPoint:         forecast.WeatherVariables.DewPoint,
-			RelativeHumidity: forecast.WeatherVariables.RelativeHumidity,
-			WindSpeed:        forecast.WeatherVariables.WindSpeed,
-			Visibility:       forecast.WeatherVariables.Visibility,
-			WeatherCode:      int32(forecast.WeatherVariables.WeatherCode),
-			MonitorID:        dbUUID(monitorID),
-		}
+) error {
+	deduped := dedupeByTime(forecasts)
+	params := sqlc.UpsertForecastsParams{
+		MonitorID:        dbUUID(monitorID),
+		ForecastAt:       make([]pgtype.Timestamptz, len(deduped)),
+		Temperature:      make([]float64, len(deduped)),
+		DewPoint:         make([]float64, len(deduped)),
+		RelativeHumidity: make([]float64, len(deduped)),
+		WindSpeed:        make([]float64, len(deduped)),
+		Visibility:       make([]float64, len(deduped)),
+		WeatherCode:      make([]int32, len(deduped)),
 	}
-	savedForecasts := make([]Forecast, len(forecasts))
-
-	for i := range params {
-		row, err := s.queries.UpsertForecast(ctx, params[i])
-		if err != nil {
-			return nil, fmt.Errorf("failed to upsert forecast: %w", err)
-		}
-		savedForecasts[i] = toDomainForecast(row)
+	for i, forecast := range deduped {
+		params.ForecastAt[i] = dbTime(forecast.Time)
+		params.Temperature[i] = forecast.Temperature
+		params.DewPoint[i] = forecast.DewPoint
+		params.RelativeHumidity[i] = forecast.RelativeHumidity
+		params.WindSpeed[i] = forecast.WindSpeed
+		params.Visibility[i] = forecast.Visibility
+		params.WeatherCode[i] = int32(forecast.WeatherCode)
 	}
-
-	return savedForecasts, nil
+	if err := s.queries.UpsertForecasts(ctx, params); err != nil {
+		return fmt.Errorf("upsert forecasts: %w", err)
+	}
+	return nil
 }
 
 func NewRunAtomically(pool *pgxpool.Pool) RunAtomically {

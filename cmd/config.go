@@ -17,6 +17,8 @@ const (
 	defaultForecastSteps  = 16
 	defaultMonitorLimit   = 5
 	defaultOTelEndpoint   = "alloy:4317"
+
+	defaultMaxConcurrentRefreshes = 4
 )
 
 type apnsConfig struct {
@@ -28,19 +30,20 @@ type apnsConfig struct {
 }
 
 type config struct {
-	DatabaseURL        string
-	Port               string
-	SigningSecrets     [][]byte
-	LogLevel           slog.Level
-	RefreshInterval    time.Duration
-	NotifyInterval     time.Duration
-	ForecastHorizon    monitor.ForecastHorizon
-	APNS               *apnsConfig
-	APNSSimulateStatus int
-	MonitorLimit       int
-	ConsoleLog         bool
-	OTelEndpoint       string
-	ClockScale         float64
+	DatabaseURL            string
+	Port                   string
+	SigningSecrets         [][]byte
+	LogLevel               slog.Level
+	RefreshInterval        time.Duration
+	NotifyInterval         time.Duration
+	ForecastHorizon        monitor.ForecastHorizon
+	APNS                   *apnsConfig
+	APNSSimulateStatus     int
+	MonitorLimit           int
+	MaxConcurrentRefreshes int
+	ConsoleLog             bool
+	OTelEndpoint           string
+	ClockScale             float64
 }
 
 func loadConfig() (config, error) { //nolint:cyclop
@@ -53,10 +56,11 @@ func loadConfig() (config, error) { //nolint:cyclop
 			Interval: time.Hour,
 			Steps:    defaultForecastSteps,
 		},
-		MonitorLimit: defaultMonitorLimit,
-		ConsoleLog:   true,
-		OTelEndpoint: defaultOTelEndpoint,
-		ClockScale:   1,
+		MonitorLimit:           defaultMonitorLimit,
+		MaxConcurrentRefreshes: defaultMaxConcurrentRefreshes,
+		ConsoleLog:             true,
+		OTelEndpoint:           defaultOTelEndpoint,
+		ClockScale:             1,
 	}
 
 	if v := os.Getenv("PORT"); v != "" {
@@ -165,6 +169,17 @@ func loadConfig() (config, error) { //nolint:cyclop
 			return config{}, fmt.Errorf("MONITOR_LIMIT must be positive, got %d", n)
 		}
 		cfg.MonitorLimit = n
+	}
+
+	if v := os.Getenv("MAX_CONCURRENT_REFRESHES"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return config{}, fmt.Errorf("invalid MAX_CONCURRENT_REFRESHES %q: %w", v, err)
+		}
+		if n <= 0 {
+			return config{}, fmt.Errorf("MAX_CONCURRENT_REFRESHES must be positive, got %d", n)
+		}
+		cfg.MaxConcurrentRefreshes = n
 	}
 
 	if v := os.Getenv("APNS_KEY_FILE"); v != "" {

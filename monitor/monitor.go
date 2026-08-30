@@ -17,7 +17,7 @@ var (
 	ErrDuplicateLocation = errors.New("duplicate monitor location")
 )
 
-type MonitorCounter interface {
+type Counter interface {
 	CountByUser(ctx context.Context, userID uuid.UUID) (int, error)
 }
 
@@ -29,8 +29,8 @@ type LocationChecker interface {
 	) (bool, error)
 }
 
-type MonitorValidator interface {
-	MonitorCounter
+type Validator interface {
+	Counter
 	LocationChecker
 }
 
@@ -56,10 +56,10 @@ func (r RiskWindow) Disjoint(w RiskWindow, margin time.Duration) bool {
 type RiskWindowChangeType int
 
 const (
-	Unchanged RiskWindowChangeType = iota
-	New
-	Changed
-	Revoked
+	RiskWindowUnchanged RiskWindowChangeType = iota
+	RiskWindowNew
+	RiskWindowChanged
+	RiskWindowRevoked
 )
 
 type RiskWindowChange struct {
@@ -69,7 +69,7 @@ type RiskWindowChange struct {
 
 func (c RiskWindowChange) NeedsSave() bool {
 	switch c.Type {
-	case New, Changed, Revoked:
+	case RiskWindowNew, RiskWindowChanged, RiskWindowRevoked:
 		return true
 	default:
 		return false
@@ -78,11 +78,11 @@ func (c RiskWindowChange) NeedsSave() bool {
 
 func (t RiskWindowChangeType) String() string {
 	switch t {
-	case New:
+	case RiskWindowNew:
 		return "new"
-	case Changed:
+	case RiskWindowChanged:
 		return "changed"
-	case Revoked:
+	case RiskWindowRevoked:
 		return "revoked"
 	default:
 		return "unchanged"
@@ -91,7 +91,7 @@ func (t RiskWindowChangeType) String() string {
 
 func (c RiskWindowChange) NeedsNotification() bool {
 	switch c.Type {
-	case New:
+	case RiskWindowNew:
 		return true
 	default:
 		return false
@@ -111,9 +111,9 @@ type Monitor struct {
 	RiskWindow *RiskWindow
 }
 
-func NewMonitor(
+func New(
 	ctx context.Context,
-	validator MonitorValidator,
+	validator Validator,
 	userID uuid.UUID,
 	location Location,
 	limit int,
@@ -209,13 +209,13 @@ func (m Monitor) ReconcileRiskWindow(
 	switch classifyTransition(m.RiskWindow, newWindow, now) {
 	case cleared:
 		m.RiskWindow = nil
-		return m, RiskWindowChange{Type: Revoked}
+		return m, RiskWindowChange{Type: RiskWindowRevoked}
 	case appeared, replaced:
 		m.RiskWindow = newWindow
-		return m, RiskWindowChange{Type: New, RiskWindow: newWindow}
+		return m, RiskWindowChange{Type: RiskWindowNew, RiskWindow: newWindow}
 	case shifted:
 		m.RiskWindow = newWindow
-		return m, RiskWindowChange{Type: Changed, RiskWindow: newWindow}
+		return m, RiskWindowChange{Type: RiskWindowChanged, RiskWindow: newWindow}
 	case stable:
 		return m, RiskWindowChange{RiskWindow: m.RiskWindow}
 	default:

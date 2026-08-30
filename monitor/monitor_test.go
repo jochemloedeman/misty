@@ -62,7 +62,7 @@ func (s stubValidator) LocationExistsByUser(
 	return s.exists, s.existsErr
 }
 
-func TestNewMonitor(t *testing.T) {
+func TestNew(t *testing.T) {
 	ctx := t.Context()
 	uid := uuid.New()
 	loc := Location{Name: "Test", Lat: 52.0, Lon: 5.0}
@@ -112,17 +112,17 @@ func TestNewMonitor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewMonitor(ctx, tt.validator, uid, loc, tt.limit)
+			_, err := New(ctx, tt.validator, uid, loc, tt.limit)
 
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("NewMonitor() error = %v, want %v", err, tt.wantErr)
+					t.Fatalf("New() error = %v, want %v", err, tt.wantErr)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Fatalf("NewMonitor() unexpected error: %v", err)
+				t.Fatalf("New() unexpected error: %v", err)
 			}
 		})
 	}
@@ -158,7 +158,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:       Unchanged,
+				Type:       RiskWindowUnchanged,
 				RiskWindow: nil,
 			},
 		},
@@ -189,7 +189,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:       Revoked,
+				Type:       RiskWindowRevoked,
 				RiskWindow: nil,
 			},
 		},
@@ -216,7 +216,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: New,
+				Type: RiskWindowNew,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
@@ -250,7 +250,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: Unchanged,
+				Type: RiskWindowUnchanged,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
@@ -284,7 +284,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: Changed,
+				Type: RiskWindowChanged,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(3 * time.Hour),
@@ -318,7 +318,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:       Revoked,
+				Type:       RiskWindowRevoked,
 				RiskWindow: nil,
 			},
 		},
@@ -349,7 +349,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type:       Revoked,
+				Type:       RiskWindowRevoked,
 				RiskWindow: nil,
 			},
 		},
@@ -380,7 +380,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: New,
+				Type: RiskWindowNew,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
@@ -410,7 +410,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: Changed,
+				Type: RiskWindowChanged,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime.Add(3 * time.Hour),
 					End:   defaultTime.Add(5 * time.Hour),
@@ -440,7 +440,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: Changed,
+				Type: RiskWindowChanged,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),
@@ -484,7 +484,7 @@ func TestReconcileRiskWindow(t *testing.T) {
 				},
 			},
 			expected: RiskWindowChange{
-				Type: New,
+				Type: RiskWindowNew,
 				RiskWindow: &RiskWindow{
 					Start: defaultTime,
 					End:   defaultTime.Add(2 * time.Hour),

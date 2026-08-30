@@ -7,7 +7,7 @@ import (
 )
 
 type Store interface {
-	MonitorValidator
+	Validator
 	ListByUser(ctx context.Context, userID uuid.UUID) ([]Monitor, error)
 	Get(ctx context.Context, userID, monitorID uuid.UUID) (Monitor, error)
 	Create(ctx context.Context, m Monitor) (Monitor, error)
@@ -42,7 +42,7 @@ func (s *Service) Get(ctx context.Context, userID, monitorID uuid.UUID) (Monitor
 }
 
 func (s *Service) Create(ctx context.Context, userID uuid.UUID, location Location) (Monitor, error) {
-	m, err := NewMonitor(ctx, s.store, userID, location, s.limit)
+	m, err := New(ctx, s.store, userID, location, s.limit)
 	if err != nil {
 		return Monitor{}, err
 	}
