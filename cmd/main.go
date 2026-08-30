@@ -180,6 +180,7 @@ func run() (err error) {
 		"refresh_interval", cfg.RefreshInterval,
 		"notify_interval", cfg.NotifyInterval,
 		"forecast_horizon", cfg.ForecastHorizon,
+		"max_concurrent_refreshes", cfg.MaxConcurrentRefreshes,
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -232,6 +233,7 @@ func run() (err error) {
 		clk,
 		monitorStore,
 		cfg.ForecastHorizon,
+		cfg.MaxConcurrentRefreshes,
 	)
 	if err != nil {
 		return fmt.Errorf("creating refresher: %w", err)

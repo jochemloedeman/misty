@@ -65,6 +65,10 @@ func allEqual(values ...int) bool {
 	return true
 }
 
+func retryableStatus(code int) bool {
+	return code == http.StatusTooManyRequests || code >= http.StatusInternalServerError
+}
+
 type variablesResponse struct {
 	Time             []string  `json:"time"`
 	Temperature      []float64 `json:"temperature_2m"`
@@ -126,12 +130,16 @@ func (f *Forecaster) Forecast(
 
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("performing request: %w", err)
+		return nil, &monitor.TransientError{Err: fmt.Errorf("performing request: %w", err)}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, body)
+		statusErr := fmt.Errorf("unexpected status %d: %s", resp.StatusCode, body)
+		if retryableStatus(resp.StatusCode) {
+			return nil, &monitor.TransientError{Err: statusErr}
+		}
+		return nil, statusErr
 	}
 
 	var apiResp response
